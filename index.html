@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Vanish</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -21,8 +22,11 @@
       color: #d3c0f9;
       border: 1.5px solid #a15fcc;
       border-radius: 6px;
-      padding: 0.4rem 0.6rem;
+      padding: 0.6rem 0.8rem;
       transition: background 0.3s, border-color 0.3s;
+      width: 100%;
+      box-sizing: border-box;
+      touch-action: manipulation;
     }
     input::placeholder {
       color: #b0a0d1;
@@ -49,6 +53,7 @@
       background: #2a1e3c;
       box-shadow: 0 0 8px #a15fccaa;
       transition: box-shadow 0.3s;
+      user-select: none;
     }
     .thumb-container:hover {
       box-shadow: 0 0 15px #c285ffcc;
@@ -92,6 +97,10 @@
       cursor: pointer;
       margin-bottom: 1rem;
       transition: background 0.3s;
+      width: auto;
+      min-width: 100px;
+      user-select: none;
+      touch-action: manipulation;
     }
     #backBtn:hover {
       background: #c285ff;
@@ -101,10 +110,30 @@
       border-bottom: 1px solid #a15fcc55;
       padding-bottom: 1rem;
     }
+
     /* Credit styling */
     div[style*="Made By"] {
       color: #a187ccbb !important;
       font-weight: 600;
+      user-select: none;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 480px) {
+      body {
+        margin: 1rem;
+        padding: 0.5rem;
+      }
+      .thumb-container {
+        width: 45vw;
+        height: auto;
+      }
+      .thumb-container img {
+        height: auto;
+      }
+      #backBtn {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -116,11 +145,11 @@
   <h1>Vanish</h1>
   
   <div id="uploadSection">
-    <input type="text" id="titleInput" placeholder="Enter a title for your video" />
+    <input type="text" id="titleInput" placeholder="Enter a title for your video" autocomplete="off" />
     <br />
     <input type="file" id="fileInput" accept="video/*" />
     <br />
-    <button id="uploadBtn">Upload Video</button>
+    <button id="uploadBtn" type="button">Upload Video</button>
     <div id="status"></div>
   </div>
 
@@ -221,7 +250,7 @@
       uploadSection.style.display = 'block';
       status.textContent = '';
     });
-#thumb
+
     async function generateThumbnail(videoUrl) {
       return new Promise((resolve, reject) => {
         const vid = document.createElement('video');
