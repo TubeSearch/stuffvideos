@@ -305,10 +305,11 @@
       formData.append('fileToUpload', file);
 
       try {
-        const response = await fetch('https://cors-anywhere.herokuapp.com/https://catbox.moe/user/api.php', {
-          method: 'POST',
-          body: formData
-        });
+      const response = await fetch("http://localhost:3000/upload", {
+        method: "POST",
+      body: formData
+      });
+
         const videoUrl = await response.text();
 
         if (!videoUrl.startsWith('http')) {
