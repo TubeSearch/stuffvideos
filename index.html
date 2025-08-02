@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vanish</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #1e1e2f;
+      color: #d3c0f9;
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    input, button {
+      font-size: 1rem;
+      margin: 0.5rem 0;
+      background: #2e2e44;
+      color: #d3c0f9;
+      border: 1.5px solid #a15fcc;
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    input::placeholder {
+      color: #b0a0d1;
+    }
+    input:focus, button:hover, button:focus {
+      background: #3f2f5f;
+      border-color: #c285ff;
+      outline: none;
+      cursor: pointer;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .thumb-container {
+      cursor: pointer;
+      border: 3px solid #a15fcc;
+      border-radius: 12px;
+      padding: 0.3rem;
+      width: 160px;
+      background: #2a1e3c;
+      box-shadow: 0 0 8px #a15fccaa;
+      transition: box-shadow 0.3s;
+    }
+    .thumb-container:hover {
+      box-shadow: 0 0 15px #c285ffcc;
+    }
+    .thumb-container img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #000;
+    }
+    .thumb-title {
+      margin-top: 0.3rem;
+      font-weight: bold;
+      color: #d3c0f9;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #videoPage {
+      display: none;
+      margin-top: 1rem;
+    }
+    video {
+      max-width: 100%;
+      max-height: 360px;
+      border: 3px solid #a15fcc;
+      border-radius: 12px;
+      background: #000;
+      display: block;
+      margin: 1rem auto;
+    }
+    #backBtn {
+      background: #a15fcc;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 1rem;
+      transition: background 0.3s;
+    }
+    #backBtn:hover {
+      background: #c285ff;
+    }
+    #uploadSection {
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #a15fcc55;
+      padding-bottom: 1rem;
+    }
+    /* Credit styling */
+    div[style*="Made By"] {
+      color: #a187ccbb !important;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div style="font-size:0.85rem; color:#a15fcccc; text-align:center; margin-bottom:1rem; font-weight:600;">
+    Made By: U2FtIE0u
+  </div>
+
+  <h1>Vanish</h1>
+  
+  <div id="uploadSection">
+    <input type="text" id="titleInput" placeholder="Enter a title for your video" />
+    <br />
+    <input type="file" id="fileInput" accept="video/*" />
+    <br />
+    <button id="uploadBtn">Upload Video</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- Gallery of thumbnails -->
+  <div id="gallery"></div>
+
+  <!-- Video viewing page -->
+  <div id="videoPage">
+    <button id="backBtn">← Back to Gallery</button>
+    <h2 id="videoTitle"></h2>
+    <video id="videoPlayer" controls></video>
+  </div>
+
+  <script>
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const status = document.getElementById('status');
+    const titleInput = document.getElementById('titleInput');
+
+    const gallery = document.getElementById('gallery');
+    const videoPage = document.getElementById('videoPage');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoTitle = document.getElementById('videoTitle');
+    const backBtn = document.getElementById('backBtn');
+    const uploadSection = document.getElementById('uploadSection');
+
+    // Clear videos daily at midnight CST
+    function clearVideosIfNeeded() {
+      const lastClearDate = localStorage.getItem('lastClearDate');
+      const now = new Date();
+
+      // Convert current time to CST (UTC-6), ignoring DST for simplicity
+      const nowCST = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      const todayStr = nowCST.toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+      if (lastClearDate !== todayStr) {
+        localStorage.removeItem('videos');
+        localStorage.setItem('lastClearDate', todayStr);
+        console.log('Cleared videos for new day:', todayStr);
+      }
+    }
+
+    clearVideosIfNeeded();
+
+    let videos = JSON.parse(localStorage.getItem('videos') || '[]');
+
+    function renderGallery() {
+      gallery.innerHTML = '';
+      if (videos.length === 0) {
+        gallery.innerHTML = '<p>No videos uploaded yet.</p>';
+        return;
+      }
+      videos.forEach((vid, index) => {
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = 'thumb-container';
+        thumbDiv.title = vid.title;
+        thumbDiv.dataset.index = index;
+
+        const img = document.createElement('img');
+        img.src = vid.thumbnail;
+        img.alt = vid.title + ' thumbnail';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'thumb-title';
+        titleEl.textContent = vid.title;
+
+        thumbDiv.appendChild(img);
+        thumbDiv.appendChild(titleEl);
+
+        thumbDiv.addEventListener('click', () => {
+          showVideoPage(index);
+        });
+
+        gallery.appendChild(thumbDiv);
+      });
+    }
+
+    function showVideoPage(index) {
+      const vid = videos[index];
+      if (!vid) return;
+
+      videoTitle.textContent = vid.title;
+      videoPlayer.src = vid.url;
+      videoPlayer.load();
+      videoPlayer.play();
+
+      gallery.style.display = 'none';
+      uploadSection.style.display = 'none';
+      videoPage.style.display = 'block';
+      status.textContent = '';
+    }
+
+    backBtn.addEventListener('click', () => {
+      videoPlayer.pause();
+      videoPlayer.src = '';
+      videoPage.style.display = 'none';
+      gallery.style.display = 'flex';
+      uploadSection.style.display = 'block';
+      status.textContent = '';
+    });
+
+    async function generateThumbnail(videoUrl) {
+      return new Promise((resolve, reject) => {
+        const vid = document.createElement('video');
+        vid.src = videoUrl;
+        vid.crossOrigin = 'anonymous';
+        vid.muted = true;
+        vid.preload = 'metadata';
+
+        vid.addEventListener('loadedmetadata', () => {
+          const captureTime = vid.duration / 2;
+          vid.currentTime = captureTime;
+        });
+
+        vid.addEventListener('seeked', () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = vid.videoWidth / 2;
+          canvas.height = vid.videoHeight / 2;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+          const dataURL = canvas.toDataURL('image/png');
+          resolve(dataURL);
+        });
+
+        vid.addEventListener('error', () => reject('Error loading video for thumbnail'));
+      });
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      const files = fileInput.files;
+      const title = titleInput.value.trim();
+
+      if (!title) {
+        alert('Please enter a title for your video before uploading!');
+        return;
+      }
+      if (!files.length) {
+        alert('Please select a video file to upload!');
+        return;
+      }
+
+      const file = files[0];
+      if (file.size > 200 * 1024 * 1024) {
+        alert('File size exceeds 200MB limit for anonymous uploads.');
+        return;
+      }
+
+      status.textContent = 'Uploading... please wait 💜';
+
+      const formData = new FormData();
+      formData.append('reqtype', 'fileupload');
+      formData.append('userhash', '');
+      formData.append('fileToUpload', file);
+
+      try {
+        const response = await fetch('https://cors-anywhere.herokuapp.com/https://catbox.moe/user/api.php', {
+          method: 'POST',
+          body: formData
+        });
+        const videoUrl = await response.text();
+
+        if (!videoUrl.startsWith('http')) {
+          status.textContent = 'Upload failed: ' + videoUrl;
+          return;
+        }
+
+        status.textContent = 'Upload successful! Generating thumbnail...';
+
+        const thumb = await generateThumbnail(videoUrl);
+
+        videos.push({
+          url: videoUrl,
+          title,
+          thumbnail: thumb
+        });
+
+        localStorage.setItem('videos', JSON.stringify(videos));
+        titleInput.value = '';
+        fileInput.value = '';
+        renderGallery();
+      } catch (err) {
+        status.textContent = 'Upload error: ' + err.message;
+      }
+    });
+
+    renderGallery();
+  </script>
+</body>
+</html>
