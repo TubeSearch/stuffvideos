@@ -218,18 +218,13 @@
     }
     status.textContent = 'Uploading... please wait';
 
-    // Upload.io config and headers
-    const apiKey = "public_W23MTJt3Toazesp2SbXKnSBmsD4h";
-
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://upload.upload.io/api/upload', {
+      // Upload through local proxy server!
+      const response = await fetch('http://localhost:3000/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
         body: formData
       });
 
