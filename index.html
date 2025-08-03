@@ -5,7 +5,89 @@
   <title>Vanish</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Your existing CSS styles */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #1e1e2f; /* deep dark purpley black */
+      color: #d3c0f9; /* soft lavender */
+      text-align: center;
+      transition: background 0.3s, color 0.3s;
+    }
+    input, button {
+      font-size: 1rem;
+      margin: 0.5rem 0;
+      background: #2e2e44; /* darker purple */
+      color: #d3c0f9;
+      border: 1.5px solid #a15fcc; /* bright purple border */
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      width: 100%;
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .thumb-container {
+      cursor: pointer;
+      border: 3px solid #a15fcc;
+      border-radius: 12px;
+      padding: 0.3rem;
+      width: 160px;
+      background: #2a1e3c; /* dark purple background */
+      box-shadow: 0 0 8px #a15fccaa; /* purple glow */
+      transition: transform 0.2s;
+    }
+    .thumb-container:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px #d3c0f9cc;
+    }
+    .thumb-container img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .thumb-title {
+      margin-top: 0.3rem;
+      font-weight: bold;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #d3c0f9;
+    }
+    #videoPage {
+      display: none;
+      margin-top: 1rem;
+    }
+    video {
+      max-width: 100%;
+      max-height: 360px;
+      border: 3px solid #a15fcc;
+      border-radius: 12px;
+      background: #000;
+      box-shadow: 0 0 12px #a15fccaa;
+    }
+    #backBtn {
+      background: #a15fcc;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 1rem;
+      transition: background 0.3s;
+    }
+    #backBtn:hover {
+      background: #d3c0f9;
+      color: #2a1e3c;
+    }
   </style>
 </head>
 <body>
@@ -136,23 +218,33 @@
     }
     status.textContent = 'Uploading... please wait';
 
+    // Upload.io config and headers
+    const apiKey = "public_W23MTJt3Toazesp2SbXKnSBmsD4h";
+
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch("https://file.io", {
-        method: "POST",
+      const response = await fetch('https://upload.upload.io/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
         body: formData
       });
 
       if (!response.ok) throw new Error(`Upload failed (${response.status})`);
       const data = await response.json();
-      if (!data.success) throw new Error(data.message || "Unknown error");
+
+      if (!data.files || !data.files[0].url) {
+        throw new Error('Upload response missing file URL');
+      }
 
       status.textContent = 'Upload successful! Generating thumbnail...';
-      const thumb = await generateThumbnail(data.link);
+      const videoUrl = data.files[0].url;
+      const thumb = await generateThumbnail(videoUrl);
 
-      videos.push({ url: data.link, title, thumbnail: thumb });
+      videos.push({ url: videoUrl, title, thumbnail: thumb });
       localStorage.setItem('videos', JSON.stringify(videos));
 
       titleInput.value = '';
