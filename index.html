@@ -5,7 +5,6 @@
   <title>Vanish</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* your styles, unchanged */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       max-width: 700px;
@@ -14,7 +13,6 @@
       background: #1e1e2f;
       color: #d3c0f9;
       text-align: center;
-      transition: background 0.3s, color 0.3s;
     }
     input, button {
       font-size: 1rem;
@@ -165,31 +163,24 @@
 
     const formData = new FormData();
     formData.append('reqtype', 'fileupload');
-    formData.append('userhash', '');
     formData.append('fileToUpload', file);
 
     try {
-      const response = await fetch("https://795f01fa5c95.ngrok-free.app/upload", { // change URL to your local server or remote
+      const response = await fetch("https://catbox.moe/user/api.php", {
         method: "POST",
-        body: formData,
-        mode: "cors"
+        body: formData
       });
 
-      if (!response.ok) {
-        status.textContent = `Upload failed with status ${response.status}`;
-        return;
-      }
+      const videoUrl = await response.text();
 
-      const data = await response.json();
-
-      if (!data.url) {
-        status.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
+      if (!videoUrl.startsWith('http')) {
+        status.textContent = 'Upload failed: ' + videoUrl;
         return;
       }
 
       status.textContent = 'Upload successful! Generating thumbnail...';
-      const thumb = await generateThumbnail(data.url);
-      videos.push({ url: data.url, title, thumbnail: thumb });
+      const thumb = await generateThumbnail(videoUrl);
+      videos.push({ url: videoUrl, title, thumbnail: thumb });
       localStorage.setItem('videos', JSON.stringify(videos));
       titleInput.value = '';
       fileInput.value = '';
