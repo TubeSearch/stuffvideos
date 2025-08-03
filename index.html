@@ -82,9 +82,21 @@
   const backBtn = document.getElementById('backBtn');
   const uploadSection = document.getElementById('uploadSection');
 
-  // Restore saved videos
+  // === AUTO DELETE VIDEOS AT MIDNIGHT CST ===
+  function clearVideosIfNeeded() {
+    const lastClearDate = localStorage.getItem('lastClearDate');
+    const now = new Date();
+    // Convert to CST (UTC-6)
+    const nowCST = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const todayStr = nowCST.toISOString().split('T')[0];
+    if (lastClearDate !== todayStr) {
+      localStorage.removeItem('videos');
+      localStorage.setItem('lastClearDate', todayStr);
+    }
+  }
+  clearVideosIfNeeded();
+
   let videos = JSON.parse(localStorage.getItem('videos') || '[]');
-  renderGallery();
 
   function renderGallery() {
     gallery.innerHTML = '';
@@ -156,30 +168,33 @@
   uploadBtn.addEventListener('click', async () => {
     const files = fileInput.files;
     const title = titleInput.value.trim();
-    if (!title) return alert('Please enter a title for your video!');
-    if (!files.length) return alert('Please select a video file!');
+    if (!title) return alert('Please enter a title for your video before uploading!');
+    if (!files.length) return alert('Please select a video file to upload!');
     const file = files[0];
     if (file.size > 200 * 1024 * 1024) {
-      return alert('File size exceeds 200MB limit for File.io.');
+      return alert('File size exceeds 200MB limit for anonymous uploads.');
     }
-    status.textContent = 'Uploading to File.io... please wait';
+    status.textContent = 'Uploading... please wait';
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://file.io', {
-        method: 'POST',
-        body: formData,
+      const response = await fetch("https://file.io", {
+        method: "POST",
+        body: formData
       });
-      if (!response.ok) throw new Error(`Upload failed with status ${response.status}`);
-      const result = await response.json();
-      if (!result.link) throw new Error('No link returned from File.io');
+
+      if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+      const data = await response.json();
+      if (!data.success) throw new Error(data.message || "Unknown error");
 
       status.textContent = 'Upload successful! Generating thumbnail...';
-      const thumb = await generateThumbnail(result.link);
-      videos.push({ url: result.link, title, thumbnail: thumb });
+      const thumb = await generateThumbnail(data.link);
+
+      videos.push({ url: data.link, title, thumbnail: thumb });
       localStorage.setItem('videos', JSON.stringify(videos));
+
       titleInput.value = '';
       fileInput.value = '';
       renderGallery();
@@ -188,6 +203,8 @@
       status.textContent = 'Upload error: ' + err.message;
     }
   });
+
+  renderGallery();
 </script>
 </body>
 </html>
