@@ -214,7 +214,7 @@
     if (!files.length) return alert('Please select a video file to upload!');
     const file = files[0];
     if (file.size > 200 * 1024 * 1024) {
-      return alert('File size exceeds 200MB limit for anonymous uploads.');
+      return alert('File size exceeds 200MB limit for uploads.');
     }
     status.textContent = 'Uploading... please wait';
 
