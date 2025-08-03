@@ -552,11 +552,15 @@
       loadLocalVideos() {
         console.log('📂 Loading local videos...');
         try {
-          const storedVideos = localStorage.getItem('vanish-videos');
-          this.videos = storedVideos ? JSON.parse(storedVideos) : [];
-          console.log(`📊 Loaded ${this.videos.length} local videos`);
+          // Only load metadata from localStorage
+          const storedMetadata = localStorage.getItem('vanish-videos-metadata');
+          const metadata = storedMetadata ? JSON.parse(storedMetadata) : [];
+          
+          // Videos with object URLs are session-only and will be empty on page refresh
+          this.videos = [];
+          console.log(`📊 Loaded ${metadata.length} video metadata entries (videos available this session only)`);
         } catch (error) {
-          console.error('❌ Failed to load local videos:', error);
+          console.error('❌ Failed to load video metadata:', error);
           this.videos = [];
         }
       }
@@ -571,9 +575,10 @@
 
         console.log(`📄 File: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
 
-        if (file.size > 50 * 1024 * 1024) {
+        // Reduced file size limit for browser storage compatibility
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
           console.log('❌ File too large');
-          this.showStatus('File too large! Maximum size is 50MB.', 'error');
+          this.showStatus('File too large! Maximum size is 10MB for browser compatibility.', 'error');
           this.fileInput.value = '';
           return false;
         }
@@ -619,51 +624,80 @@
           const file = this.fileInput.files[0];
           const title = this.titleInput.value.trim();
 
+          // Check if file is too large for localStorage (estimate: base64 is ~33% larger)
+          const estimatedSize = file.size * 1.33;
+          if (estimatedSize > 5 * 1024 * 1024) { // 5MB limit
+            this.showStatus(`File too large for browser storage! Try a video smaller than ~4MB. Current size: ${this.formatFileSize(file.size)}`, 'error');
+            return;
+          }
+
           console.log(`📤 Uploading: "${title}" (${file.size} bytes)`);
           
           this.uploadBtn.disabled = true;
           this.showStatus('Processing video locally...', 'loading');
           this.showProgress(10);
 
-          console.log('🔄 Converting to base64...');
-          this.showStatus('Converting video...', 'loading');
-          this.showProgress(30);
-          
-          const videoData = await this.fileToBase64(file);
-          console.log('✅ Video converted to base64');
-          this.showProgress(60);
-          
           console.log('🖼️ Generating thumbnail...');
           this.showStatus('Generating thumbnail...', 'loading');
           const thumbnailData = await this.generateThumbnail(file);
           console.log('✅ Thumbnail generated');
-          this.showProgress(80);
+          this.showProgress(40);
+
+          // Store video using URL.createObjectURL instead of base64 for better performance
+          const videoUrl = URL.createObjectURL(file);
+          this.showProgress(70);
 
           const videoEntry = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
             title: title,
-            videoData: videoData,
+            videoUrl: videoUrl, // Use object URL instead of base64
             thumbnail: thumbnailData,
             uploadTime: new Date().toISOString(),
             size: this.formatFileSize(file.size),
-            uploader: this.generateAnonymousId()
+            uploader: this.generateAnonymousId(),
+            fileName: file.name,
+            fileType: file.type
           };
 
-          console.log('📝 Adding video to local storage...');
+          console.log('📝 Adding video to session storage...');
           this.videos.unshift(videoEntry);
-          if (this.videos.length > 20) {
-            this.videos = this.videos.slice(0, 20);
+          if (this.videos.length > 10) { // Reduced limit for better performance
+            // Clean up old object URLs
+            const removedVideos = this.videos.splice(10);
+            removedVideos.forEach(v => {
+              if (v.videoUrl && v.videoUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(v.videoUrl);
+              }
+            });
           }
 
-          localStorage.setItem('vanish-videos', JSON.stringify(this.videos));
+          // Store only metadata in localStorage, not the actual video data
+          const metadataToStore = this.videos.map(v => ({
+            id: v.id,
+            title: v.title,
+            thumbnail: v.thumbnail,
+            uploadTime: v.uploadTime,
+            size: v.size,
+            uploader: v.uploader,
+            fileName: v.fileName,
+            fileType: v.fileType
+            // Note: videoUrl is NOT stored as it's temporary
+          }));
+
+          try {
+            localStorage.setItem('vanish-videos-metadata', JSON.stringify(metadataToStore));
+          } catch (storageError) {
+            console.warn('⚠️ Could not save to localStorage, continuing with session-only storage');
+          }
+
           this.showProgress(100);
-          console.log('✅ Video saved locally!');
+          console.log('✅ Video processed successfully!');
 
           this.titleInput.value = '';
           this.fileInput.value = '';
           this.renderGallery();
 
-          this.showStatus('🎉 Video uploaded successfully!', 'success');
+          this.showStatus('🎉 Video uploaded successfully! (Available this session only)', 'success');
           
           setTimeout(() => {
             this.hideStatus();
@@ -672,7 +706,11 @@
 
         } catch (error) {
           console.error('❌ Upload failed:', error);
-          this.showStatus(`Upload failed: ${error.message}`, 'error');
+          if (error.message.includes('quota') || error.message.includes('storage')) {
+            this.showStatus('Storage quota exceeded! Try uploading a smaller video file (under ~4MB).', 'error');
+          } else {
+            this.showStatus(`Upload failed: ${error.message}`, 'error');
+          }
         } finally {
           this.uploadBtn.disabled = false;
         }
@@ -796,8 +834,14 @@
         const video = this.videos[index];
         if (!video) return;
 
+        // Check if video URL is still valid (object URLs are temporary)
+        if (!video.videoUrl || !video.videoUrl.startsWith('blob:')) {
+          this.showStatus('Video no longer available. Videos are only stored during the current session.', 'error');
+          return;
+        }
+
         this.videoTitle.textContent = video.title;
-        this.videoPlayer.src = video.videoData;
+        this.videoPlayer.src = video.videoUrl;
         this.videoPlayer.load();
         
         this.gallery.style.display = 'none';
