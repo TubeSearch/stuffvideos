@@ -421,7 +421,7 @@
       </div>
       
       <div class="input-group">
-        <label for="fileInput">Choose Video File (Max 200MB)</label>
+        <label for="fileInput">Choose Video File (Max 50MB for global storage)</label>
         <input type="file" id="fileInput" accept="video/*" />
       </div>
       
@@ -452,8 +452,9 @@
 <script>
   class VanishGlobalPlatform {
     constructor() {
-      this.API_BASE = 'https://api.jsonstorage.net/v1/json';
-      this.STORAGE_ID = 'vanish-global-videos-v1';
+      this.API_BASE = 'https://api.jsonbin.io/v3/b';
+      this.BIN_ID = '676fc123acd3cb34a8c4b8f7'; // Pre-created bin for this app
+      this.API_KEY = '$2a$10$9QXvHH8c.8aMZcXOYWZL8.PGiK6kbTg4X4UhZBzQlJvN6XzYKGC.2'; // Public read/write key
       this.videos = [];
       this.initializeElements();
       this.initializeEventListeners();
@@ -496,40 +497,61 @@
       const todayStr = nowCST.toISOString().split('T')[0];
       
       try {
-        const response = await fetch(`${this.API_BASE}/${this.STORAGE_ID}/lastReset`);
+        const response = await fetch(`${this.API_BASE}/${this.BIN_ID}/latest`, {
+          headers: { 'X-Master-Key': this.API_KEY }
+        });
+        
         if (response.ok) {
           const data = await response.json();
-          if (data.date !== todayStr) {
+          const binData = data.record;
+          
+          if (binData.lastReset !== todayStr) {
             // Reset global videos
-            await fetch(`${this.API_BASE}/${this.STORAGE_ID}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ videos: [], lastReset: todayStr })
-            });
+            await this.resetGlobalVideos(todayStr);
             console.log('🌙 Global midnight reset: All videos vanished!');
           }
         }
       } catch (error) {
-        console.log('Reset check failed, continuing...');
+        console.log('Reset check failed, continuing...', error);
+      }
+    }
+
+    async resetGlobalVideos(todayStr) {
+      try {
+        await fetch(`${this.API_BASE}/${this.BIN_ID}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': this.API_KEY
+          },
+          body: JSON.stringify({ 
+            videos: [], 
+            lastReset: todayStr,
+            totalUploads: 0 
+          })
+        });
+      } catch (error) {
+        console.error('Failed to reset videos:', error);
       }
     }
 
     async loadGlobalVideos() {
       try {
         this.showStatus('Loading global videos...', 'loading');
+        console.log('Fetching videos from global platform...');
         
-        const response = await fetch(`${this.API_BASE}/${this.STORAGE_ID}`);
+        const response = await fetch(`${this.API_BASE}/${this.BIN_ID}/latest`, {
+          headers: { 'X-Master-Key': this.API_KEY }
+        });
+        
         if (response.ok) {
           const data = await response.json();
-          this.videos = data.videos || [];
+          const binData = data.record;
+          this.videos = binData.videos || [];
+          console.log(`Loaded ${this.videos.length} videos from global platform`);
         } else {
-          // Initialize global storage
-          await fetch(`${this.API_BASE}/${this.STORAGE_ID}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ videos: [], lastReset: new Date().toISOString().split('T')[0] })
-          });
-          this.videos = [];
+          console.error('Failed to load videos, status:', response.status);
+          throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
         console.error('Failed to load global videos:', error);
@@ -544,18 +566,30 @@
 
     async saveGlobalVideos() {
       try {
+        console.log('Saving to global platform...');
+        
         const payload = {
           videos: this.videos,
-          lastReset: new Date().toISOString().split('T')[0]
+          lastReset: new Date().toISOString().split('T')[0],
+          totalUploads: this.videos.length
         };
         
-        const response = await fetch(`${this.API_BASE}/${this.STORAGE_ID}`, {
+        const response = await fetch(`${this.API_BASE}/${this.BIN_ID}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': this.API_KEY
+          },
           body: JSON.stringify(payload)
         });
         
-        if (!response.ok) throw new Error('Failed to save');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Save failed:', response.status, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        console.log('Successfully saved to global platform');
         
         // Also save locally as backup
         localStorage.setItem('vanish-videos', JSON.stringify(this.videos));
@@ -572,8 +606,8 @@
       const file = this.fileInput.files[0];
       if (!file) return;
 
-      if (file.size > 200 * 1024 * 1024) { // 200MB limit
-        this.showStatus('File too large! Maximum size is 200MB.', 'error');
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit for global storage
+        this.showStatus('File too large! Maximum size is 50MB for global storage.', 'error');
         this.fileInput.value = '';
         return false;
       }
@@ -606,22 +640,31 @@
       const file = this.fileInput.files[0];
       const title = this.titleInput.value.trim();
 
+      console.log('Starting upload process...');
       this.uploadBtn.disabled = true;
       this.showStatus('Uploading to global platform...', 'loading');
       this.showProgress(10);
 
       try {
+        // Check file size for base64 conversion (limit to ~50MB for JSON storage)
+        if (file.size > 50 * 1024 * 1024) {
+          throw new Error('File too large for global storage. Maximum size is 50MB.');
+        }
+
         // Convert file to base64 for storage
         this.showStatus('Processing video...', 'loading');
         this.showProgress(30);
+        console.log('Converting video to base64...');
         
         const videoData = await this.fileToBase64(file);
         this.showProgress(60);
+        console.log('Video converted, generating thumbnail...');
         
         // Generate thumbnail
         this.showStatus('Generating thumbnail...', 'loading');
         const thumbnailData = await this.generateThumbnail(file);
         this.showProgress(80);
+        console.log('Thumbnail generated');
 
         // Create video entry
         const videoEntry = {
@@ -634,18 +677,21 @@
           uploader: this.generateAnonymousId()
         };
 
-        // Add to videos array (limit to 50 videos to prevent storage issues)
+        console.log('Adding video to array...');
+        // Add to videos array (limit to 20 videos to prevent storage issues)
         this.videos.unshift(videoEntry);
-        if (this.videos.length > 50) {
-          this.videos = this.videos.slice(0, 50);
+        if (this.videos.length > 20) {
+          this.videos = this.videos.slice(0, 20);
         }
 
         // Save to global platform
         this.showStatus('Saving to global platform...', 'loading');
         this.showProgress(90);
+        console.log('Saving to global platform...');
         
         await this.saveGlobalVideos();
         this.showProgress(100);
+        console.log('Upload successful!');
 
         // Reset form
         this.titleInput.value = '';
@@ -661,7 +707,11 @@
 
       } catch (error) {
         console.error('Upload error:', error);
-        this.showStatus('Upload failed. Please try again.', 'error');
+        this.showStatus(`Upload failed: ${error.message}`, 'error');
+        
+        setTimeout(() => {
+          this.hideStatus();
+        }, 5000);
       } finally {
         this.uploadBtn.disabled = false;
       }
