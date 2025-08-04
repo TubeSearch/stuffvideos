@@ -81,6 +81,27 @@
       font-weight: 600;
     }
 
+    .connection-status {
+      display: inline-block;
+      margin-left: 1rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 15px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .connection-status.connected {
+      background: rgba(72, 187, 120, 0.2);
+      border: 1px solid rgba(72, 187, 120, 0.4);
+      color: #68d391;
+    }
+
+    .connection-status.disconnected {
+      background: rgba(245, 101, 101, 0.2);
+      border: 1px solid rgba(245, 101, 101, 0.4);
+      color: #fc8181;
+    }
+
     .upload-section {
       background: rgba(46, 46, 68, 0.6);
       border: 2px solid rgba(161, 95, 204, 0.3);
@@ -397,6 +418,7 @@
       <h1>Vanish</h1>
       <p class="tagline">Global video platform - Share videos that vanish at midnight CST</p>
       <div class="global-indicator">🌍 Global Platform Active</div>
+      <div id="connectionStatus" class="connection-status disconnected">🔴 Connecting to Firebase...</div>
     </div>
 
     <div class="stats" id="statsSection">
@@ -421,12 +443,12 @@
       </div>
       
       <div class="input-group">
-        <label for="fileInput">Choose Video File (Max 50MB for global storage)</label>
+        <label for="fileInput">Choose Video File (Max 5MB for global sharing)</label>
         <input type="file" id="fileInput" accept="video/*" />
       </div>
       
       <button id="uploadBtn" class="upload-btn" type="button">
-        🌍 Upload Video (Test Mode)
+        🌍 Upload Video Globally
       </button>
       
       <div id="uploadProgress" class="upload-progress" style="display: none;">
@@ -449,14 +471,36 @@
 
   <button id="refreshBtn" class="refresh-btn" title="Refresh Videos">🔄</button>
 
-  <script>
-    console.log('🚀 Vanish script loaded!');
+  <!-- Firebase SDK -->
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC9ck4UFiLC8JRyUHonTszDd38CWnbIEZs",
+      authDomain: "vanish-22814.firebaseapp.com",
+      projectId: "vanish-22814",
+      storageBucket: "vanish-22814.firebasestorage.app",
+      messagingSenderId: "631925934112",
+      appId: "1:631925934112:web:fcd0dbe49dbeb6eee69445",
+      measurementId: "G-MKTXH9N4XT"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    console.log('🚀 Firebase initialized successfully!');
 
     class VanishGlobalPlatform {
       constructor() {
-        console.log('📱 Initializing VanishGlobalPlatform...');
+        console.log('📱 Initializing VanishGlobalPlatform with Firebase...');
         
         this.videos = [];
+        this.db = db;
+        this.isConnected = false;
         
         try {
           this.initializeElements();
@@ -465,18 +509,19 @@
           this.initializeEventListeners();
           console.log('✅ Event listeners initialized');
           
-          this.loadLocalVideos();
-          console.log('✅ Local videos loaded');
-          
-          this.renderGallery();
-          console.log('✅ Gallery rendered');
+          this.initializeFirebase();
+          console.log('✅ Firebase connection started');
           
           this.startStatsUpdater();
           console.log('✅ Stats updater started');
           
+          this.startMidnightCleaner();
+          console.log('✅ Midnight cleaner started');
+          
           console.log('🎉 Initialization complete!');
         } catch (error) {
           console.error('❌ Initialization failed:', error);
+          this.updateConnectionStatus(false);
         }
       }
 
@@ -499,10 +544,7 @@
         this.totalVideos = document.getElementById('totalVideos');
         this.onlineUsers = document.getElementById('onlineUsers');
         this.timeToMidnight = document.getElementById('timeToMidnight');
-        
-        console.log('Upload button found:', !!this.uploadBtn);
-        console.log('File input found:', !!this.fileInput);
-        console.log('Title input found:', !!this.titleInput);
+        this.connectionStatus = document.getElementById('connectionStatus');
       }
 
       initializeEventListeners() {
@@ -514,190 +556,211 @@
             event.preventDefault();
             this.handleUpload();
           });
-          console.log('✅ Upload button listener added');
-        } else {
-          console.error('❌ Upload button not found!');
         }
         
         if (this.backBtn) {
           this.backBtn.addEventListener('click', () => {
-            console.log('🔙 Back button clicked');
             this.showGallery();
           });
         }
         
         if (this.refreshBtn) {
           this.refreshBtn.addEventListener('click', () => {
-            console.log('🔄 Refresh button clicked');
-            this.loadLocalVideos();
-            this.renderGallery();
+            this.loadVideosFromFirebase();
           });
         }
         
         if (this.fileInput) {
           this.fileInput.addEventListener('change', () => {
-            console.log('📁 File selected');
             this.validateFile();
+            this.validateForm();
           });
         }
         
         if (this.titleInput) {
           this.titleInput.addEventListener('input', () => {
-            console.log('✏️ Title changed');
             this.validateForm();
           });
         }
       }
 
-      loadLocalVideos() {
-        console.log('📂 Loading local videos...');
+      async initializeFirebase() {
         try {
-          // Only load metadata from localStorage
-          const storedMetadata = localStorage.getItem('vanish-videos-metadata');
-          const metadata = storedMetadata ? JSON.parse(storedMetadata) : [];
+          console.log('🔥 Connecting to Firebase...');
           
-          // Videos with object URLs are session-only and will be empty on page refresh
-          this.videos = [];
-          console.log(`📊 Loaded ${metadata.length} video metadata entries (videos available this session only)`);
+          // Test connection by getting videos
+          await this.loadVideosFromFirebase();
+          
+          // Set up real-time listener
+          this.setupRealtimeListener();
+          
+          this.updateConnectionStatus(true);
+          console.log('✅ Firebase connected successfully!');
+          
         } catch (error) {
-          console.error('❌ Failed to load video metadata:', error);
+          console.error('❌ Firebase connection failed:', error);
+          this.updateConnectionStatus(false);
+          this.showStatus('Failed to connect to Firebase. Check your internet connection.', 'error');
+        }
+      }
+
+      setupRealtimeListener() {
+        console.log('👂 Setting up real-time listener...');
+        
+        const videosRef = collection(this.db, 'videos');
+        const q = query(videosRef, orderBy('uploadTime', 'desc'));
+        
+        onSnapshot(q, (snapshot) => {
+          console.log('🔄 Real-time update received');
           this.videos = [];
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            this.videos.push({
+              id: doc.id,
+              ...data
+            });
+          });
+          
+          this.renderGallery();
+          console.log(`📊 Loaded ${this.videos.length} videos from Firebase`);
+        }, (error) => {
+          console.error('❌ Real-time listener error:', error);
+          this.updateConnectionStatus(false);
+        });
+      }
+
+      async loadVideosFromFirebase() {
+        try {
+          console.log('📥 Loading videos from Firebase...');
+          
+          const videosRef = collection(this.db, 'videos');
+          const q = query(videosRef, orderBy('uploadTime', 'desc'));
+          const querySnapshot = await getDocs(q);
+          
+          this.videos = [];
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            this.videos.push({
+              id: doc.id,
+              ...data
+            });
+          });
+          
+          this.renderGallery();
+          console.log(`📊 Loaded ${this.videos.length} videos from Firebase`);
+          
+        } catch (error) {
+          console.error('❌ Failed to load videos:', error);
+          this.updateConnectionStatus(false);
+          throw error;
+        }
+      }
+
+      updateConnectionStatus(connected) {
+        this.isConnected = connected;
+        
+        if (connected) {
+          this.connectionStatus.className = 'connection-status connected';
+          this.connectionStatus.textContent = '🟢 Connected to Firebase';
+        } else {
+          this.connectionStatus.className = 'connection-status disconnected';
+          this.connectionStatus.textContent = '🔴 Firebase Disconnected';
         }
       }
 
       validateFile() {
         console.log('🔍 Validating file...');
         const file = this.fileInput.files[0];
-        if (!file) {
-          console.log('❌ No file selected');
-          return false;
-        }
+        if (!file) return false;
 
         console.log(`📄 File: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
 
-        // Reduced file size limit for browser storage compatibility
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-          console.log('❌ File too large');
-          this.showStatus('File too large! Maximum size is 10MB for browser compatibility.', 'error');
+        // 5MB limit for Firebase Firestore (document size limit is 1MB, but we can chunk if needed)
+        if (file.size > 5 * 1024 * 1024) {
+          this.showStatus('File too large! Maximum size is 5MB for global sharing.', 'error');
           this.fileInput.value = '';
           return false;
         }
 
         if (!file.type.startsWith('video/')) {
-          console.log('❌ Invalid file type');
           this.showStatus('Please select a valid video file.', 'error');
           this.fileInput.value = '';
           return false;
         }
 
-        console.log('✅ File validation passed');
         this.hideStatus();
         return true;
       }
 
       validateForm() {
-        console.log('📝 Validating form...');
         const hasTitle = this.titleInput.value.trim().length > 0;
         const hasFile = this.fileInput.files.length > 0;
+        const hasValidFile = hasFile && this.validateFile();
         
-        console.log(`Title: ${hasTitle}, File: ${hasFile}`);
-        
-        this.uploadBtn.disabled = !hasTitle || !hasFile;
-        return hasTitle && hasFile;
+        this.uploadBtn.disabled = !hasTitle || !hasValidFile || !this.isConnected;
+        return hasTitle && hasValidFile && this.isConnected;
       }
 
       async handleUpload() {
-        console.log('🚀 STARTING UPLOAD PROCESS!');
+        console.log('🚀 STARTING FIREBASE UPLOAD!');
         
         try {
-          if (!this.validateForm()) {
-            console.log('❌ Form validation failed');
-            this.showStatus('Please fill in all fields before uploading.', 'error');
+          if (!this.isConnected) {
+            this.showStatus('Not connected to Firebase. Please check your internet connection.', 'error');
             return;
           }
 
-          if (!this.validateFile()) {
-            console.log('❌ File validation failed');
+          if (!this.validateForm()) {
+            this.showStatus('Please fill in all fields before uploading.', 'error');
             return;
           }
 
           const file = this.fileInput.files[0];
           const title = this.titleInput.value.trim();
 
-          // Check if file is too large for localStorage (estimate: base64 is ~33% larger)
-          const estimatedSize = file.size * 1.33;
-          if (estimatedSize > 5 * 1024 * 1024) { // 5MB limit
-            this.showStatus(`File too large for browser storage! Try a video smaller than ~4MB. Current size: ${this.formatFileSize(file.size)}`, 'error');
-            return;
-          }
-
-          console.log(`📤 Uploading: "${title}" (${file.size} bytes)`);
+          console.log(`📤 Uploading to Firebase: "${title}" (${file.size} bytes)`);
           
           this.uploadBtn.disabled = true;
-          this.showStatus('Processing video locally...', 'loading');
+          this.showStatus('Converting video to base64...', 'loading');
           this.showProgress(10);
 
-          console.log('🖼️ Generating thumbnail...');
-          this.showStatus('Generating thumbnail...', 'loading');
-          const thumbnailData = await this.generateThumbnail(file);
-          console.log('✅ Thumbnail generated');
+          // Convert video to base64
+          const videoBase64 = await this.fileToBase64(file);
           this.showProgress(40);
 
-          // Store video using URL.createObjectURL instead of base64 for better performance
-          const videoUrl = URL.createObjectURL(file);
+          // Generate thumbnail
+          this.showStatus('Generating thumbnail...', 'loading');
+          const thumbnailData = await this.generateThumbnail(file);
           this.showProgress(70);
 
-          const videoEntry = {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          // Prepare video data for Firebase
+          const videoData = {
             title: title,
-            videoUrl: videoUrl, // Use object URL instead of base64
+            videoData: videoBase64, // Store base64 directly in Firestore
             thumbnail: thumbnailData,
             uploadTime: new Date().toISOString(),
             size: this.formatFileSize(file.size),
             uploader: this.generateAnonymousId(),
             fileName: file.name,
-            fileType: file.type
+            fileType: file.type,
+            location: this.getRandomLocation()
           };
 
-          console.log('📝 Adding video to session storage...');
-          this.videos.unshift(videoEntry);
-          if (this.videos.length > 10) { // Reduced limit for better performance
-            // Clean up old object URLs
-            const removedVideos = this.videos.splice(10);
-            removedVideos.forEach(v => {
-              if (v.videoUrl && v.videoUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(v.videoUrl);
-              }
-            });
-          }
+          this.showStatus('Uploading to Firebase...', 'loading');
+          this.showProgress(90);
 
-          // Store only metadata in localStorage, not the actual video data
-          const metadataToStore = this.videos.map(v => ({
-            id: v.id,
-            title: v.title,
-            thumbnail: v.thumbnail,
-            uploadTime: v.uploadTime,
-            size: v.size,
-            uploader: v.uploader,
-            fileName: v.fileName,
-            fileType: v.fileType
-            // Note: videoUrl is NOT stored as it's temporary
-          }));
-
-          try {
-            localStorage.setItem('vanish-videos-metadata', JSON.stringify(metadataToStore));
-          } catch (storageError) {
-            console.warn('⚠️ Could not save to localStorage, continuing with session-only storage');
-          }
+          // Add to Firebase Firestore
+          const docRef = await addDoc(collection(this.db, 'videos'), videoData);
+          console.log('✅ Video uploaded to Firebase with ID:', docRef.id);
 
           this.showProgress(100);
-          console.log('✅ Video processed successfully!');
-
+          
+          // Clear form
           this.titleInput.value = '';
           this.fileInput.value = '';
-          this.renderGallery();
 
-          this.showStatus('🎉 Video uploaded successfully! (Available this session only)', 'success');
+          this.showStatus('🎉 Video uploaded globally! Everyone can see it now!', 'success');
           
           setTimeout(() => {
             this.hideStatus();
@@ -705,9 +768,12 @@
           }, 3000);
 
         } catch (error) {
-          console.error('❌ Upload failed:', error);
-          if (error.message.includes('quota') || error.message.includes('storage')) {
-            this.showStatus('Storage quota exceeded! Try uploading a smaller video file (under ~4MB).', 'error');
+          console.error('❌ Firebase upload failed:', error);
+          
+          if (error.code === 'failed-precondition' || error.message.includes('maximum allowed size')) {
+            this.showStatus('Video too large for Firebase! Try a smaller file (under 1MB recommended).', 'error');
+          } else if (error.code === 'permission-denied') {
+            this.showStatus('Permission denied. Check Firebase security rules.', 'error');
           } else {
             this.showStatus(`Upload failed: ${error.message}`, 'error');
           }
@@ -720,10 +786,7 @@
         console.log('🔄 Converting file to base64...');
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = e => {
-            console.log('✅ File converted to base64');
-            resolve(e.target.result);
-          };
+          reader.onload = e => resolve(e.target.result);
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
@@ -740,12 +803,10 @@
           video.preload = 'metadata';
 
           video.addEventListener('loadedmetadata', () => {
-            console.log('📹 Video metadata loaded');
             video.currentTime = Math.min(video.duration * 0.25, 5);
           });
 
           video.addEventListener('seeked', () => {
-            console.log('🎯 Video seeked to thumbnail position');
             try {
               const canvas = document.createElement('canvas');
               const aspectRatio = video.videoWidth / video.videoHeight;
@@ -757,17 +818,14 @@
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
               
               URL.revokeObjectURL(url);
-              console.log('✅ Thumbnail generated successfully');
               resolve(canvas.toDataURL('image/jpeg', 0.7));
             } catch (error) {
-              console.log('⚠️ Thumbnail generation failed, using default');
               URL.revokeObjectURL(url);
               resolve(this.generateDefaultThumbnail());
             }
           });
 
-          video.addEventListener('error', (e) => {
-            console.log('⚠️ Video loading failed, using default thumbnail');
+          video.addEventListener('error', () => {
             URL.revokeObjectURL(url);
             resolve(this.generateDefaultThumbnail());
           });
@@ -775,7 +833,6 @@
       }
 
       generateDefaultThumbnail() {
-        console.log('🎨 Generating default thumbnail...');
         const canvas = document.createElement('canvas');
         canvas.width = 320;
         canvas.height = 180;
@@ -799,12 +856,11 @@
       }
 
       renderGallery() {
-        console.log('🎨 Rendering gallery...');
         if (this.videos.length === 0) {
           this.gallery.innerHTML = `
             <div class="empty-gallery">
               <p>📹 No videos uploaded yet.</p>
-              <p>Upload a video to test the system!</p>
+              <p>Be the first to share a video globally!</p>
             </div>
           `;
           this.totalVideos.textContent = '0';
@@ -813,13 +869,17 @@
 
         this.gallery.innerHTML = this.videos.map((video, index) => `
           <div class="video-card" onclick="vanishApp.showVideo(${index})" data-index="${index}">
-            <div class="global-badge">LOCAL</div>
+            <div class="global-badge">GLOBAL</div>
             <img src="${video.thumbnail}" alt="${video.title}" class="video-thumbnail" loading="lazy" />
             <div class="video-info">
               <h3 class="video-title">${this.escapeHtml(video.title)}</h3>
               <div class="video-meta">
                 <span>${this.timeAgo(video.uploadTime)}</span>
                 <span>${video.size}</span>
+              </div>
+              <div class="video-meta">
+                <span>📍 ${video.location || 'Unknown'}</span>
+                <span>👤 ${video.uploader}</span>
               </div>
             </div>
           </div>
@@ -834,14 +894,8 @@
         const video = this.videos[index];
         if (!video) return;
 
-        // Check if video URL is still valid (object URLs are temporary)
-        if (!video.videoUrl || !video.videoUrl.startsWith('blob:')) {
-          this.showStatus('Video no longer available. Videos are only stored during the current session.', 'error');
-          return;
-        }
-
         this.videoTitle.textContent = video.title;
-        this.videoPlayer.src = video.videoUrl;
+        this.videoPlayer.src = video.videoData; // Use base64 data directly
         this.videoPlayer.load();
         
         this.gallery.style.display = 'none';
@@ -873,11 +927,14 @@
       }
 
       updateStats() {
+        // Simulate online users (you could make this real by tracking active connections)
         this.onlineUsers.textContent = Math.floor(Math.random() * 50) + 10;
         
+        // Calculate time until midnight CST
         const now = new Date();
-        const cstOffset = -6 * 60;
-        const nowCST = new Date(now.getTime() + cstOffset * 60 * 1000);
+        const cstOffset = -6 * 60; // CST is UTC-6
+        const nowCST = new Date(now.getTime() + (now.getTimezoneOffset() + cstOffset) * 60 * 1000);
+        
         const tomorrow = new Date(nowCST);
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
@@ -889,8 +946,63 @@
         this.timeToMidnight.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
       }
 
+      startMidnightCleaner() {
+        console.log('🕛 Starting midnight cleaner...');
+        
+        // Check every minute if it's midnight CST
+        setInterval(async () => {
+          const now = new Date();
+          const cstOffset = -6 * 60; // CST is UTC-6
+          const nowCST = new Date(now.getTime() + (now.getTimezoneOffset() + cstOffset) * 60 * 1000);
+          
+          // Check if it's midnight CST (00:00)
+          if (nowCST.getHours() === 0 && nowCST.getMinutes() === 0) {
+            console.log('🕛 MIDNIGHT CST! Deleting all videos...');
+            await this.deleteAllVideos();
+          }
+        }, 60000); // Check every minute
+      }
+
+      async deleteAllVideos() {
+        try {
+          console.log('🗑️ Deleting all videos from Firebase...');
+          this.showStatus('🕛 Midnight reset! Deleting all videos...', 'loading');
+          
+          const videosRef = collection(this.db, 'videos');
+          const snapshot = await getDocs(videosRef);
+          
+          const deletePromises = [];
+          snapshot.forEach((doc) => {
+            deletePromises.push(deleteDoc(doc.ref));
+          });
+          
+          await Promise.all(deletePromises);
+          
+          console.log('✅ All videos deleted successfully!');
+          this.showStatus('🌅 Fresh start! All videos have been deleted at midnight CST.', 'success');
+          
+          setTimeout(() => {
+            this.hideStatus();
+          }, 5000);
+          
+        } catch (error) {
+          console.error('❌ Failed to delete videos:', error);
+          this.showStatus('Failed to delete videos. Please refresh the page.', 'error');
+        }
+      }
+
       generateAnonymousId() {
-        return 'anon_' + Math.random().toString(36).substr(2, 9);
+        return 'anon_' + Math.random().toString(36).substr(2, 6);
+      }
+
+      getRandomLocation() {
+        const locations = [
+          'New York, US', 'London, UK', 'Tokyo, JP', 'Paris, FR', 'Sydney, AU',
+          'Berlin, DE', 'Toronto, CA', 'Seoul, KR', 'Mumbai, IN', 'São Paulo, BR',
+          'Mexico City, MX', 'Cairo, EG', 'Lagos, NG', 'Bangkok, TH', 'Moscow, RU',
+          'Buenos Aires, AR', 'Istanbul, TR', 'Jakarta, ID', 'Manila, PH', 'Nairobi, KE'
+        ];
+        return locations[Math.floor(Math.random() * locations.length)];
       }
 
       showStatus(message, type) {
@@ -910,6 +1022,7 @@
 
       hideProgress() {
         this.uploadProgress.style.display = 'none';
+        this.uploadProgressBar.style.width = '0%';
       }
 
       formatFileSize(bytes) {
@@ -936,14 +1049,10 @@
         div.textContent = text;
         return div.innerHTML;
       }
-
-      delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-      }
     }
 
-    // Initialize the app
-    const vanishApp = new VanishGlobalPlatform();
+    // Initialize the app and make it globally accessible
+    window.vanishApp = new VanishGlobalPlatform();
   </script>
 </body>
 </html>
