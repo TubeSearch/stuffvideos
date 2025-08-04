@@ -146,6 +146,32 @@
       box-shadow: 0 0 0 3px rgba(161, 95, 204, 0.2);
     }
 
+    .compression-options {
+      background: rgba(42, 30, 60, 0.4);
+      border: 1px solid rgba(161, 95, 204, 0.3);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .compression-options h4 {
+      margin: 0 0 0.5rem 0;
+      color: #a15fcc;
+      font-size: 0.9rem;
+    }
+
+    .quality-slider {
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+
+    .quality-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #a15fccaa;
+    }
+
     .upload-btn {
       width: 100%;
       font-size: 1.1rem;
@@ -443,8 +469,24 @@
       </div>
       
       <div class="input-group">
-        <label for="fileInput">Choose Video File (Max 3MB for global sharing)</label>
+        <label for="fileInput">Choose Video File</label>
         <input type="file" id="fileInput" accept="video/*" />
+        
+        <div class="compression-options" id="compressionOptions" style="display: none;">
+          <h4>🗜️ Auto-Compression Settings</h4>
+          <div>
+            <label for="qualitySlider">Quality Level:</label>
+            <input type="range" id="qualitySlider" class="quality-slider" min="0.3" max="0.9" step="0.1" value="0.7">
+            <div class="quality-info">
+              <span>Lower Quality (Smaller File)</span>
+              <span id="qualityValue">0.7</span>
+              <span>Higher Quality (Larger File)</span>
+            </div>
+          </div>
+          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #a15fccaa;">
+            Auto-compression will reduce file size to fit Firebase limits while maintaining playback quality.
+          </div>
+        </div>
       </div>
       
       <button id="uploadBtn" class="upload-btn" type="button">
@@ -501,6 +543,8 @@
         this.videos = [];
         this.db = db;
         this.isConnected = false;
+        this.maxFileSize = 2.9 * 1024 * 1024; // 2.9MB to stay under 3MB limit
+        this.currentBlobUrls = new Set(); // Track blob URLs for cleanup
         
         try {
           this.initializeElements();
@@ -545,6 +589,9 @@
         this.onlineUsers = document.getElementById('onlineUsers');
         this.timeToMidnight = document.getElementById('timeToMidnight');
         this.connectionStatus = document.getElementById('connectionStatus');
+        this.compressionOptions = document.getElementById('compressionOptions');
+        this.qualitySlider = document.getElementById('qualitySlider');
+        this.qualityValue = document.getElementById('qualityValue');
       }
 
       initializeEventListeners() {
@@ -572,8 +619,7 @@
         
         if (this.fileInput) {
           this.fileInput.addEventListener('change', () => {
-            this.validateFile();
-            this.validateForm();
+            this.handleFileSelection();
           });
         }
         
@@ -582,6 +628,133 @@
             this.validateForm();
           });
         }
+
+        if (this.qualitySlider) {
+          this.qualitySlider.addEventListener('input', (e) => {
+            this.qualityValue.textContent = e.target.value;
+          });
+        }
+      }
+
+      async handleFileSelection() {
+        const file = this.fileInput.files[0];
+        if (!file) {
+          this.compressionOptions.style.display = 'none';
+          this.validateForm();
+          return;
+        }
+
+        console.log(`📄 File selected: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
+
+        if (!file.type.startsWith('video/')) {
+          this.showStatus('Please select a valid video file.', 'error');
+          this.fileInput.value = '';
+          this.compressionOptions.style.display = 'none';
+          this.validateForm();
+          return;
+        }
+
+        // Show compression options if file exists
+        this.compressionOptions.style.display = 'block';
+        
+        // Check if file needs compression
+        if (file.size > this.maxFileSize) {
+          this.showStatus(`File size: ${this.formatFileSize(file.size)}. Auto-compression will be applied to reduce size.`, 'loading');
+        } else {
+          this.showStatus(`File size: ${this.formatFileSize(file.size)}. Ready to upload!`, 'success');
+        }
+
+        this.validateForm();
+      }
+
+      async compressVideo(file, quality = 0.7) {
+        console.log(`🗜️ Compressing video with quality: ${quality}`);
+        
+        return new Promise((resolve, reject) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const video = document.createElement('video');
+          
+          video.src = URL.createObjectURL(file);
+          video.muted = true;
+          video.preload = 'metadata';
+          
+          video.addEventListener('loadedmetadata', () => {
+            const aspectRatio = video.videoWidth / video.videoHeight;
+            
+            // Reduce resolution based on quality
+            let targetWidth = video.videoWidth;
+            let targetHeight = video.videoHeight;
+            
+            if (quality < 0.5) {
+              targetWidth = Math.floor(video.videoWidth * 0.6);
+              targetHeight = Math.floor(video.videoHeight * 0.6);
+            } else if (quality < 0.7) {
+              targetWidth = Math.floor(video.videoWidth * 0.8);
+              targetHeight = Math.floor(video.videoHeight * 0.8);
+            }
+            
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            
+            // Create MediaRecorder to record compressed video
+            const stream = canvas.captureStream(24); // 24 FPS
+            const mediaRecorder = new MediaRecorder(stream, {
+              mimeType: 'video/webm;codecs=vp8',
+              videoBitsPerSecond: Math.floor(1000000 * quality) // Adjust bitrate based on quality
+            });
+            
+            const chunks = [];
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                chunks.push(e.data);
+              }
+            };
+            
+            mediaRecorder.onstop = () => {
+              const compressedBlob = new Blob(chunks, { type: 'video/webm' });
+              console.log(`✅ Compression complete. Original: ${file.size} -> Compressed: ${compressedBlob.size}`);
+              
+              // Create a File object from the blob
+              const compressedFile = new File([compressedBlob], 
+                file.name.replace(/\.[^/.]+$/, '') + '_compressed.webm', 
+                { type: 'video/webm' }
+              );
+              
+              URL.revokeObjectURL(video.src);
+              resolve(compressedFile);
+            };
+            
+            mediaRecorder.onerror = (error) => {
+              console.error('❌ Compression failed:', error);
+              URL.revokeObjectURL(video.src);
+              reject(error);
+            };
+            
+            // Start recording
+            mediaRecorder.start();
+            
+            // Draw video frames to canvas
+            const drawFrame = () => {
+              if (video.currentTime < video.duration) {
+                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+                requestAnimationFrame(drawFrame);
+              } else {
+                mediaRecorder.stop();
+              }
+            };
+            
+            video.play().then(() => {
+              drawFrame();
+            });
+          });
+          
+          video.addEventListener('error', (error) => {
+            console.error('❌ Video loading failed:', error);
+            URL.revokeObjectURL(video.src);
+            reject(error);
+          });
+        });
       }
 
       async initializeFirebase() {
@@ -669,37 +842,12 @@
         }
       }
 
-      validateFile() {
-        console.log('🔍 Validating file...');
-        const file = this.fileInput.files[0];
-        if (!file) return false;
-
-        console.log(`📄 File: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
-
-        // 3MB limit - after base64 encoding and chunking, this should work well
-        if (file.size > 3 * 1024 * 1024) {
-          this.showStatus('File too large! Maximum size is 3MB for global sharing.', 'error');
-          this.fileInput.value = '';
-          return false;
-        }
-
-        if (!file.type.startsWith('video/')) {
-          this.showStatus('Please select a valid video file.', 'error');
-          this.fileInput.value = '';
-          return false;
-        }
-
-        this.hideStatus();
-        return true;
-      }
-
       validateForm() {
         const hasTitle = this.titleInput.value.trim().length > 0;
         const hasFile = this.fileInput.files.length > 0;
-        const hasValidFile = hasFile && this.validateFile();
         
-        this.uploadBtn.disabled = !hasTitle || !hasValidFile || !this.isConnected;
-        return hasTitle && hasValidFile && this.isConnected;
+        this.uploadBtn.disabled = !hasTitle || !hasFile || !this.isConnected;
+        return hasTitle && hasFile && this.isConnected;
       }
 
       async handleUpload() {
@@ -716,30 +864,64 @@
             return;
           }
 
-          const file = this.fileInput.files[0];
+          let file = this.fileInput.files[0];
           const title = this.titleInput.value.trim();
+          const quality = parseFloat(this.qualitySlider.value);
 
-          console.log(`📤 Uploading to Firebase: "${title}" (${file.size} bytes)`);
+          console.log(`📤 Starting upload process: "${title}" (${file.size} bytes)`);
           
           this.uploadBtn.disabled = true;
+          this.showProgress(5);
+
+          // Check if compression is needed
+          if (file.size > this.maxFileSize) {
+            this.showStatus('🗜️ File too large, compressing video...', 'loading');
+            this.showProgress(10);
+            
+            try {
+              file = await this.compressVideo(file, quality);
+              console.log(`✅ Compression complete. New size: ${file.size} bytes`);
+              this.showProgress(40);
+              
+              // Check if still too large after compression
+              if (file.size > this.maxFileSize) {
+                // Try with lower quality
+                console.log('📉 Still too large, trying lower quality...');
+                this.showStatus('🗜️ Applying maximum compression...', 'loading');
+                file = await this.compressVideo(this.fileInput.files[0], 0.3);
+                this.showProgress(50);
+                
+                if (file.size > this.maxFileSize) {
+                  throw new Error('File too large even after maximum compression');
+                }
+              }
+            } catch (compressionError) {
+              console.error('❌ Compression failed:', compressionError);
+              this.showStatus('Failed to compress video. Please try a smaller file.', 'error');
+              return;
+            }
+          } else {
+            this.showProgress(40);
+          }
+
           this.showStatus('Converting video to base64...', 'loading');
-          this.showProgress(10);
+          this.showProgress(50);
 
           // Convert video to base64
           const videoBase64 = await this.fileToBase64(file);
-          this.showProgress(30);
+          this.showProgress(60);
 
           // Generate thumbnail
           this.showStatus('Generating thumbnail...', 'loading');
           const thumbnailData = await this.generateThumbnail(file);
-          this.showProgress(50);
+          this.showProgress(70);
 
-          // Check if we need to chunk the video data
+          // Prepare video data
           const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-          const maxChunkSize = 800000; // 800KB to stay well under 1MB limit
+          const maxChunkSize = 800000; // 800KB chunks
           
           this.showStatus('Preparing video for upload...', 'loading');
-          this.showProgress(60);
+          this.showProgress(75);
 
           if (videoBase64.length > maxChunkSize) {
             // Large video - chunk it
@@ -756,6 +938,7 @@
           // Clear form
           this.titleInput.value = '';
           this.fileInput.value = '';
+          this.compressionOptions.style.display = 'none';
 
           this.showStatus('🎉 Video uploaded globally! Everyone can see it now!', 'success');
           
@@ -768,11 +951,11 @@
           console.error('❌ Firebase upload failed:', error);
           
           if (error.code === 'failed-precondition' || error.message.includes('maximum allowed size')) {
-            this.showStatus('Video too large for Firebase! Try a smaller file (under 3MB recommended).', 'error');
+            this.showStatus('Video too large for Firebase! Try a smaller file.', 'error');
           } else if (error.code === 'permission-denied') {
             this.showStatus('Permission denied. Check Firebase security rules.', 'error');
-          } else if (error.message.includes('longer than')) {
-            this.showStatus('Video file too large. Please try a smaller video (under 2MB).', 'error');
+          } else if (error.message.includes('too large')) {
+            this.showStatus('Video file too large. Please try a smaller video.', 'error');
           } else {
             this.showStatus(`Upload failed: ${error.message}`, 'error');
           }
@@ -848,7 +1031,7 @@
           return addDoc(collection(this.db, 'video_chunks'), chunkData);
         });
 
-        this.showProgress(80);
+        this.showProgress(85);
         await Promise.all(chunkPromises);
         
         console.log(`✅ Chunked video uploaded: ${chunks.length} chunks`);
@@ -968,23 +1151,32 @@
 
         this.videoTitle.textContent = video.title;
         
-        // Check if video is chunked
-        if (video.isChunked) {
-          console.log('📦 Loading chunked video...');
-          this.showStatus('Loading video...', 'loading');
+        // Clean up previous blob URLs
+        this.cleanupBlobUrls();
+        
+        try {
+          let videoDataUrl;
           
-          try {
-            const videoData = await this.loadChunkedVideo(video.id);
-            this.videoPlayer.src = videoData;
-            this.hideStatus();
-          } catch (error) {
-            console.error('❌ Failed to load chunked video:', error);
-            this.showStatus('Failed to load video. Please try again.', 'error');
-            return;
+          // Check if video is chunked
+          if (video.isChunked) {
+            console.log('📦 Loading chunked video...');
+            this.showStatus('Loading video...', 'loading');
+            
+            videoDataUrl = await this.loadChunkedVideo(video.id);
+          } else {
+            // Regular video
+            videoDataUrl = video.videoData;
           }
-        } else {
-          // Regular video
-          this.videoPlayer.src = video.videoData;
+          
+          // Convert base64 to blob URL for proper video playback
+          const blobUrl = this.base64ToBlob(videoDataUrl);
+          this.videoPlayer.src = blobUrl;
+          
+          this.hideStatus();
+        } catch (error) {
+          console.error('❌ Failed to load video:', error);
+          this.showStatus('Failed to load video. Please try again.', 'error');
+          return;
         }
         
         this.videoPlayer.load();
@@ -1000,6 +1192,47 @@
         }, 100);
       }
 
+      base64ToBlob(base64Data) {
+        console.log('🔄 Converting base64 to blob URL...');
+        
+        try {
+          // Remove data URL prefix if present
+          const base64String = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+          const mimeType = base64Data.includes(',') ? base64Data.split(',')[0].split(':')[1].split(';')[0] : 'video/mp4';
+          
+          // Convert base64 to binary
+          const byteCharacters = atob(base64String);
+          const byteNumbers = new Array(byteCharacters.length);
+          
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mimeType });
+          
+          // Create blob URL
+          const blobUrl = URL.createObjectURL(blob);
+          this.currentBlobUrls.add(blobUrl);
+          
+          console.log(`✅ Created blob URL: ${blobUrl.substring(0, 50)}...`);
+          return blobUrl;
+          
+        } catch (error) {
+          console.error('❌ Failed to convert base64 to blob:', error);
+          // Fallback to direct base64
+          return base64Data;
+        }
+      }
+
+      cleanupBlobUrls() {
+        console.log('🧹 Cleaning up blob URLs...');
+        this.currentBlobUrls.forEach(url => {
+          URL.revokeObjectURL(url);
+        });
+        this.currentBlobUrls.clear();
+      }
+
       async loadChunkedVideo(videoId) {
         console.log(`📦 Loading chunks for video ${videoId}...`);
         
@@ -1010,32 +1243,22 @@
           const querySnapshot = await getDocs(q);
           
           const chunks = [];
-          let mimeType = '';
-          
           querySnapshot.forEach((doc) => {
             const data = doc.data();
             chunks[data.chunkIndex] = data.chunkData;
-            
-            // Extract MIME type from first chunk if it contains the data URL header
-            if (data.chunkIndex === 0 && data.chunkData.startsWith('data:')) {
-              const mimeMatch = data.chunkData.match(/data:([^;]+)/);
-              if (mimeMatch) {
-                mimeType = mimeMatch[1];
-              }
-            }
           });
           
           console.log(`📦 Loaded ${chunks.length} chunks`);
           
           // Combine all chunks
-          let completeVideoData = chunks.join('');
+          const completeVideoData = chunks.join('');
           
-          // If the first chunk doesn't start with 'data:', we need to reconstruct the data URL
-          if (!completeVideoData.startsWith('data:')) {
-            // Find the video in our videos array to get the MIME type
-            const video = this.videos.find(v => v.id === videoId);
-            const detectedMimeType = video ? video.fileType : 'video/mp4';
-            completeVideoData = `data:${detectedMimeType};base64,${completeVideoData}`;
+          // Find the original base64 prefix from the first chunk
+          const firstChunk = chunks[0];
+          if (firstChunk && firstChunk.startsWith('data:')) {
+            const prefixEnd = firstChunk.indexOf(',') + 1;
+            const prefix = firstChunk.substring(0, prefixEnd);
+            return prefix + chunks.join('').substring(prefixEnd);
           }
           
           return completeVideoData;
@@ -1050,6 +1273,9 @@
         console.log('🏠 Showing gallery');
         this.videoPlayer.pause();
         this.videoPlayer.src = '';
+        
+        // Clean up blob URLs when leaving video page
+        this.cleanupBlobUrls();
         
         this.videoPage.style.display = 'none';
         this.gallery.style.display = 'grid';
