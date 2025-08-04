@@ -1237,9 +1237,9 @@
         console.log(`📦 Loading chunks for video ${videoId}...`);
         
         try {
-          // Get all chunks for this video
+          // Get all chunks for this video - use only where clause to avoid index requirement
           const chunksRef = collection(this.db, 'video_chunks');
-          const q = query(chunksRef, where('videoId', '==', videoId), orderBy('chunkIndex'));
+          const q = query(chunksRef, where('videoId', '==', videoId));
           const querySnapshot = await getDocs(q);
           
           const chunks = [];
@@ -1250,15 +1250,23 @@
           
           console.log(`📦 Loaded ${chunks.length} chunks`);
           
+          // Sort chunks by index (since we can't use orderBy)
+          const sortedChunks = [];
+          for (let i = 0; i < chunks.length; i++) {
+            if (chunks[i] !== undefined) {
+              sortedChunks.push(chunks[i]);
+            }
+          }
+          
           // Combine all chunks
-          const completeVideoData = chunks.join('');
+          const completeVideoData = sortedChunks.join('');
           
           // Find the original base64 prefix from the first chunk
-          const firstChunk = chunks[0];
+          const firstChunk = sortedChunks[0];
           if (firstChunk && firstChunk.startsWith('data:')) {
             const prefixEnd = firstChunk.indexOf(',') + 1;
             const prefix = firstChunk.substring(0, prefixEnd);
-            return prefix + chunks.join('').substring(prefixEnd);
+            return prefix + sortedChunks.join('').substring(prefixEnd);
           }
           
           return completeVideoData;
