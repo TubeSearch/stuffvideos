@@ -727,32 +727,29 @@
 
           // Convert video to base64
           const videoBase64 = await this.fileToBase64(file);
-          this.showProgress(40);
+          this.showProgress(30);
 
           // Generate thumbnail
           this.showStatus('Generating thumbnail...', 'loading');
           const thumbnailData = await this.generateThumbnail(file);
-          this.showProgress(70);
+          this.showProgress(50);
 
-          // Prepare video data for Firebase
-          const videoData = {
-            title: title,
-            videoData: videoBase64, // Store base64 directly in Firestore
-            thumbnail: thumbnailData,
-            uploadTime: new Date().toISOString(),
-            size: this.formatFileSize(file.size),
-            uploader: this.generateAnonymousId(),
-            fileName: file.name,
-            fileType: file.type,
-            location: this.getRandomLocation()
-          };
+          // Check if we need to chunk the video data
+          const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+          const maxChunkSize = 800000; // 800KB to stay well under 1MB limit
+          
+          this.showStatus('Preparing video for upload...', 'loading');
+          this.showProgress(60);
 
-          this.showStatus('Uploading to Firebase...', 'loading');
-          this.showProgress(90);
-
-          // Add to Firebase Firestore
-          const docRef = await addDoc(collection(this.db, 'videos'), videoData);
-          console.log('✅ Video uploaded to Firebase with ID:', docRef.id);
+          if (videoBase64.length > maxChunkSize) {
+            // Large video - chunk it
+            console.log('📦 Video is large, chunking into multiple documents...');
+            await this.uploadChunkedVideo(videoId, title, videoBase64, thumbnailData, file);
+          } else {
+            // Small video - upload normally
+            console.log('📄 Video is small, uploading as single document...');
+            await this.uploadSingleVideo(videoId, title, videoBase64, thumbnailData, file);
+          }
 
           this.showProgress(100);
           
@@ -771,15 +768,90 @@
           console.error('❌ Firebase upload failed:', error);
           
           if (error.code === 'failed-precondition' || error.message.includes('maximum allowed size')) {
-            this.showStatus('Video too large for Firebase! Try a smaller file (under 1MB recommended).', 'error');
+            this.showStatus('Video too large for Firebase! Try a smaller file (under 3MB recommended).', 'error');
           } else if (error.code === 'permission-denied') {
             this.showStatus('Permission denied. Check Firebase security rules.', 'error');
+          } else if (error.message.includes('longer than')) {
+            this.showStatus('Video file too large. Please try a smaller video (under 2MB).', 'error');
           } else {
             this.showStatus(`Upload failed: ${error.message}`, 'error');
           }
         } finally {
           this.uploadBtn.disabled = false;
         }
+      }
+
+      async uploadSingleVideo(videoId, title, videoBase64, thumbnailData, file) {
+        console.log('📄 Uploading single document...');
+        
+        const videoData = {
+          id: videoId,
+          title: title,
+          videoData: videoBase64,
+          thumbnail: thumbnailData,
+          uploadTime: new Date().toISOString(),
+          size: this.formatFileSize(file.size),
+          uploader: this.generateAnonymousId(),
+          fileName: file.name,
+          fileType: file.type,
+          location: this.getRandomLocation(),
+          isChunked: false
+        };
+
+        this.showStatus('Uploading to Firebase...', 'loading');
+        this.showProgress(90);
+
+        await addDoc(collection(this.db, 'videos'), videoData);
+        console.log('✅ Single video uploaded to Firebase');
+      }
+
+      async uploadChunkedVideo(videoId, title, videoBase64, thumbnailData, file) {
+        console.log('📦 Uploading chunked video...');
+        
+        const maxChunkSize = 800000; // 800KB chunks
+        const chunks = [];
+        
+        // Split video data into chunks
+        for (let i = 0; i < videoBase64.length; i += maxChunkSize) {
+          chunks.push(videoBase64.slice(i, i + maxChunkSize));
+        }
+        
+        console.log(`📦 Split video into ${chunks.length} chunks`);
+        this.showStatus(`Uploading video in ${chunks.length} parts...`, 'loading');
+
+        // Upload main video document (metadata only)
+        const mainVideo = {
+          id: videoId,
+          title: title,
+          thumbnail: thumbnailData,
+          uploadTime: new Date().toISOString(),
+          size: this.formatFileSize(file.size),
+          uploader: this.generateAnonymousId(),
+          fileName: file.name,
+          fileType: file.type,
+          location: this.getRandomLocation(),
+          isChunked: true,
+          totalChunks: chunks.length,
+          videoData: '' // Empty for chunked videos
+        };
+
+        await addDoc(collection(this.db, 'videos'), mainVideo);
+        
+        // Upload chunks
+        const chunkPromises = chunks.map((chunk, index) => {
+          const chunkData = {
+            videoId: videoId,
+            chunkIndex: index,
+            chunkData: chunk,
+            uploadTime: new Date().toISOString()
+          };
+          return addDoc(collection(this.db, 'video_chunks'), chunkData);
+        });
+
+        this.showProgress(80);
+        await Promise.all(chunkPromises);
+        
+        console.log(`✅ Chunked video uploaded: ${chunks.length} chunks`);
       }
 
       async fileToBase64(file) {
