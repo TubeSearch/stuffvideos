@@ -443,7 +443,7 @@
       </div>
       
       <div class="input-group">
-        <label for="fileInput">Choose Video File (Max 5MB for global sharing)</label>
+        <label for="fileInput">Choose Video File (Max 3MB for global sharing)</label>
         <input type="file" id="fileInput" accept="video/*" />
       </div>
       
@@ -475,7 +475,7 @@
   <script type="module">
     // Import Firebase modules
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, doc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, doc, where } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
     // Firebase configuration
     const firebaseConfig = {
@@ -676,9 +676,9 @@
 
         console.log(`📄 File: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
 
-        // 5MB limit for Firebase Firestore (document size limit is 1MB, but we can chunk if needed)
-        if (file.size > 5 * 1024 * 1024) {
-          this.showStatus('File too large! Maximum size is 5MB for global sharing.', 'error');
+        // 3MB limit - after base64 encoding and chunking, this should work well
+        if (file.size > 3 * 1024 * 1024) {
+          this.showStatus('File too large! Maximum size is 3MB for global sharing.', 'error');
           this.fileInput.value = '';
           return false;
         }
@@ -961,13 +961,32 @@
         console.log(`✅ Gallery rendered with ${this.videos.length} videos`);
       }
 
-      showVideo(index) {
+      async showVideo(index) {
         console.log(`📺 Showing video ${index}`);
         const video = this.videos[index];
         if (!video) return;
 
         this.videoTitle.textContent = video.title;
-        this.videoPlayer.src = video.videoData; // Use base64 data directly
+        
+        // Check if video is chunked
+        if (video.isChunked) {
+          console.log('📦 Loading chunked video...');
+          this.showStatus('Loading video...', 'loading');
+          
+          try {
+            const videoData = await this.loadChunkedVideo(video.id);
+            this.videoPlayer.src = videoData;
+            this.hideStatus();
+          } catch (error) {
+            console.error('❌ Failed to load chunked video:', error);
+            this.showStatus('Failed to load video. Please try again.', 'error');
+            return;
+          }
+        } else {
+          // Regular video
+          this.videoPlayer.src = video.videoData;
+        }
+        
         this.videoPlayer.load();
         
         this.gallery.style.display = 'none';
@@ -979,6 +998,52 @@
             console.log('Auto-play prevented by browser policy');
           });
         }, 100);
+      }
+
+      async loadChunkedVideo(videoId) {
+        console.log(`📦 Loading chunks for video ${videoId}...`);
+        
+        try {
+          // Get all chunks for this video
+          const chunksRef = collection(this.db, 'video_chunks');
+          const q = query(chunksRef, where('videoId', '==', videoId), orderBy('chunkIndex'));
+          const querySnapshot = await getDocs(q);
+          
+          const chunks = [];
+          let mimeType = '';
+          
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            chunks[data.chunkIndex] = data.chunkData;
+            
+            // Extract MIME type from first chunk if it contains the data URL header
+            if (data.chunkIndex === 0 && data.chunkData.startsWith('data:')) {
+              const mimeMatch = data.chunkData.match(/data:([^;]+)/);
+              if (mimeMatch) {
+                mimeType = mimeMatch[1];
+              }
+            }
+          });
+          
+          console.log(`📦 Loaded ${chunks.length} chunks`);
+          
+          // Combine all chunks
+          let completeVideoData = chunks.join('');
+          
+          // If the first chunk doesn't start with 'data:', we need to reconstruct the data URL
+          if (!completeVideoData.startsWith('data:')) {
+            // Find the video in our videos array to get the MIME type
+            const video = this.videos.find(v => v.id === videoId);
+            const detectedMimeType = video ? video.fileType : 'video/mp4';
+            completeVideoData = `data:${detectedMimeType};base64,${completeVideoData}`;
+          }
+          
+          return completeVideoData;
+          
+        } catch (error) {
+          console.error('❌ Failed to load video chunks:', error);
+          throw error;
+        }
       }
 
       showGallery() {
@@ -1040,17 +1105,26 @@
           console.log('🗑️ Deleting all videos from Firebase...');
           this.showStatus('🕛 Midnight reset! Deleting all videos...', 'loading');
           
+          // Delete all videos
           const videosRef = collection(this.db, 'videos');
-          const snapshot = await getDocs(videosRef);
+          const videosSnapshot = await getDocs(videosRef);
           
           const deletePromises = [];
-          snapshot.forEach((doc) => {
+          videosSnapshot.forEach((doc) => {
+            deletePromises.push(deleteDoc(doc.ref));
+          });
+          
+          // Delete all video chunks
+          const chunksRef = collection(this.db, 'video_chunks');
+          const chunksSnapshot = await getDocs(chunksRef);
+          
+          chunksSnapshot.forEach((doc) => {
             deletePromises.push(deleteDoc(doc.ref));
           });
           
           await Promise.all(deletePromises);
           
-          console.log('✅ All videos deleted successfully!');
+          console.log('✅ All videos and chunks deleted successfully!');
           this.showStatus('🌅 Fresh start! All videos have been deleted at midnight CST.', 'success');
           
           setTimeout(() => {
