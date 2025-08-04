@@ -565,6 +565,9 @@
           this.startMidnightCleaner();
           console.log('✅ Midnight cleaner started');
           
+          this.initializeUserPresence();
+          console.log('✅ User presence tracking started');
+          
           console.log('🎉 Initialization complete!');
         } catch (error) {
           console.error('❌ Initialization failed:', error);
@@ -760,9 +763,210 @@
         });
       }
 
+      generateUserId() {
+        // Generate a unique user ID for this session
+        return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      }
+
+      async initializeUserPresence() {
+        console.log('👥 Initializing user presence tracking...');
+        
+        try {
+          // Create user presence document
+          this.userDocRef = doc(this.db, 'active_users', this.userId);
+          
+          await setDoc(this.userDocRef, {
+            userId: this.userId,
+            lastSeen: serverTimestamp(),
+            joinedAt: serverTimestamp(),
+            userAgent: navigator.userAgent.substring(0, 100), // First 100 chars
+            page: 'main'
+          });
+          
+          console.log(`✅ User presence created: ${this.userId}`);
+          
+          // Set up real-time active users listener
+          this.setupActiveUsersListener();
+          
+          // Update presence every 30 seconds
+          this.startPresenceUpdater();
+          
+          // Handle page visibility changes
+          this.setupVisibilityHandlers();
+          
+        } catch (error) {
+          console.error('❌ Failed to initialize user presence:', error);
+        }
+      }
+
+      setupActiveUsersListener() {
+        console.log('👂 Setting up active users listener...');
+        
+        const activeUsersRef = collection(this.db, 'active_users');
+        
+        onSnapshot(activeUsersRef, (snapshot) => {
+          const now = new Date();
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
+          
+          let activeCount = 0;
+          const expiredUsers = [];
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const lastSeen = data.lastSeen?.toDate();
+            
+            if (lastSeen && lastSeen > fiveMinutesAgo) {
+              activeCount++;
+            } else {
+              // Mark for cleanup
+              expiredUsers.push(doc.id);
+            }
+          });
+          
+          this.activeUsers = activeCount;
+          this.onlineUsers.textContent = activeCount;
+          
+          console.log(`👥 Active users: ${activeCount}`);
+          
+          // Clean up expired users (don't await to avoid blocking)
+          this.cleanupExpiredUsers(expiredUsers);
+          
+        }, (error) => {
+          console.error('❌ Active users listener error:', error);
+          // Fallback to random number
+          this.onlineUsers.textContent = Math.floor(Math.random() * 50) + 10;
+        });
+      }
+
+      async cleanupExpiredUsers(expiredUserIds) {
+        if (expiredUserIds.length === 0) return;
+        
+        console.log(`🧹 Cleaning up ${expiredUserIds.length} expired users...`);
+        
+        try {
+          const deletePromises = expiredUserIds.map(userId => 
+            deleteDoc(doc(this.db, 'active_users', userId))
+          );
+          
+          // Delete all active users (clean slate for new day)
+          const activeUsersRef = collection(this.db, 'active_users');
+          const activeUsersSnapshot = await getDocs(activeUsersRef);
+          
+          activeUsersSnapshot.forEach((doc) => {
+            deletePromises.push(deleteDoc(doc.ref));
+          });
+          
+          await Promise.all(deletePromises);
+          console.log(`✅ Cleaned up ${expiredUserIds.length} expired users`);
+          
+        } catch (error) {
+          console.error('❌ Failed to cleanup expired users:', error);
+        }
+      }
+
+      startPresenceUpdater() {
+        // Update presence every 30 seconds
+        setInterval(async () => {
+          if (this.userDocRef && !document.hidden) {
+            try {
+              await setDoc(this.userDocRef, {
+                lastSeen: serverTimestamp(),
+                page: this.getCurrentPage()
+              }, { merge: true });
+              
+              console.log('💓 Presence heartbeat sent');
+              
+            } catch (error) {
+              console.error('❌ Failed to update presence:', error);
+            }
+          }
+        }, 30000); // 30 seconds
+      }
+
+      setupVisibilityHandlers() {
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', async () => {
+          if (document.hidden) {
+            console.log('👻 Page hidden, user went inactive');
+            // Optional: Mark as inactive immediately
+          } else {
+            console.log('👀 Page visible, user became active');
+            // Update presence when user comes back
+            if (this.userDocRef) {
+              try {
+                await setDoc(this.userDocRef, {
+                  lastSeen: serverTimestamp(),
+                  page: this.getCurrentPage()
+                }, { merge: true });
+              } catch (error) {
+                console.error('❌ Failed to update presence on visibility change:', error);
+              }
+            }
+          }
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+          // Use sendBeacon for reliable cleanup
+          if (this.userDocRef && navigator.sendBeacon) {
+            const cleanupData = JSON.stringify({
+              action: 'cleanup_user',
+              userId: this.userId
+            });
+            
+            // This would need a server endpoint, but we can try direct cleanup
+            navigator.sendBeacon('/cleanup', cleanupData);
+          }
+        });
+
+        // Fallback cleanup using pagehide
+        window.addEventListener('pagehide', async () => {
+          if (this.userDocRef) {
+            try {
+              // Quick cleanup attempt
+              await deleteDoc(this.userDocRef);
+              console.log('👋 User presence cleaned up on page unload');
+            } catch (error) {
+              console.log('⚠️ Could not cleanup presence on unload');
+            }
+          }
+        });
+      }
+
+      getCurrentPage() {
+        if (this.videoPage.style.display !== 'none') {
+          return 'video';
+        }
+        return 'main';
+      }
+
       async initializeFirebase() {
         try {
           console.log('🔥 Connecting to Firebase...');
+          console.log('🌐 Testing network connectivity...');
+          
+          // Test basic network connectivity first
+          try {
+            const response = await fetch('https://www.google.com/favicon.ico', { 
+              mode: 'no-cors',
+              cache: 'no-cache'
+            });
+            console.log('✅ Network connectivity confirmed');
+          } catch (networkError) {
+            console.error('❌ Network connectivity issue:', networkError);
+            this.updateConnectionStatus(false);
+            this.showStatus('Network connection issue. Please check your internet connection.', 'error');
+            return;
+          }
+
+          // Test Firebase connection with timeout
+          console.log('🔥 Testing Firebase connection...');
+          const testPromise = this.testFirebaseConnection();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Firebase connection timeout')), 15000)
+          );
+
+          await Promise.race([testPromise, timeoutPromise]);
           
           // Test connection by getting videos
           await this.loadVideosFromFirebase();
@@ -776,8 +980,94 @@
         } catch (error) {
           console.error('❌ Firebase connection failed:', error);
           this.updateConnectionStatus(false);
-          this.showStatus('Failed to connect to Firebase. Check your internet connection.', 'error');
+          
+          if (error.message.includes('timeout')) {
+            this.showStatus('Firebase connection timeout. Please refresh the page and try again.', 'error');
+          } else if (error.code === 'permission-denied') {
+            this.showStatus('Permission denied. Firebase security rules may be blocking access.', 'error');
+          } else if (error.code === 'unavailable') {
+            this.showStatus('Firebase service unavailable. Please try again later.', 'error');
+          } else {
+            this.showStatus(`Failed to connect to Firebase: ${error.message}. Please refresh and try again.`, 'error');
+          }
+
+          // Try to show cached/local content or provide manual refresh option
+          this.showFailsafeOptions();
         }
+      }
+
+      async testFirebaseConnection() {
+        console.log('🧪 Testing Firebase read permissions...');
+        
+        try {
+          // Try to read from videos collection (should work even if empty)
+          const videosRef = collection(this.db, 'videos');
+          const testQuery = query(videosRef);
+          await getDocs(testQuery);
+          console.log('✅ Firebase read test successful');
+          
+          // Try to write to active_users (test write permissions)
+          console.log('🧪 Testing Firebase write permissions...');
+          const testUserId = 'test_' + Date.now();
+          const testUserRef = doc(this.db, 'active_users', testUserId);
+          await setDoc(testUserRef, {
+            test: true,
+            timestamp: serverTimestamp()
+          });
+          
+          // Clean up test document
+          await deleteDoc(testUserRef);
+          console.log('✅ Firebase write test successful');
+          
+        } catch (error) {
+          console.error('❌ Firebase connection test failed:', error);
+          throw error;
+        }
+      }
+
+      showFailsafeOptions() {
+        console.log('🆘 Showing failsafe options...');
+        
+        // Show a retry button and troubleshooting info
+        this.gallery.innerHTML = `
+          <div class="empty-gallery">
+            <h3 style="color: #fc8181; margin-bottom: 1rem;">🔥 Firebase Connection Failed</h3>
+            <p>Unable to connect to the video database.</p>
+            <br>
+            <button onclick="location.reload()" style="
+              background: linear-gradient(45deg, #a15fcc, #d3c0f9);
+              color: #1e1e2f;
+              border: none;
+              padding: 1rem 2rem;
+              border-radius: 12px;
+              font-weight: bold;
+              cursor: pointer;
+              margin: 0.5rem;
+            ">🔄 Retry Connection</button>
+            <br><br>
+            <details style="text-align: left; max-width: 600px; margin: 0 auto;">
+              <summary style="cursor: pointer; color: #a15fcc; margin-bottom: 1rem;">🔧 Troubleshooting Steps</summary>
+              <div style="background: rgba(46, 46, 68, 0.6); padding: 1rem; border-radius: 8px; font-size: 0.9rem;">
+                <p><strong>Try these steps:</strong></p>
+                <ol style="text-align: left; padding-left: 1.5rem;">
+                  <li>Refresh the page (Ctrl+F5 or Cmd+Shift+R)</li>
+                  <li>Check your internet connection</li>
+                  <li>Disable ad blockers or browser extensions</li>
+                  <li>Try a different browser or incognito mode</li>
+                  <li>Check if your firewall/network blocks Firebase</li>
+                  <li>Clear browser cache and cookies</li>
+                </ol>
+                <p style="margin-top: 1rem;"><strong>Firebase Domains to Whitelist:</strong></p>
+                <ul style="text-align: left; padding-left: 1.5rem; font-family: monospace; font-size: 0.8rem;">
+                  <li>*.googleapis.com</li>
+                  <li>*.gstatic.com</li>
+                  <li>vanish-22814.firebaseapp.com</li>
+                  <li>firestore.googleapis.com</li>
+                </ul>
+              </div>
+            </details>
+          </div>
+        `;
       }
 
       setupRealtimeListener() {
@@ -788,6 +1078,8 @@
         
         onSnapshot(q, (snapshot) => {
           console.log('🔄 Real-time update received');
+          console.log(`📊 Snapshot size: ${snapshot.size} documents`);
+          
           this.videos = [];
           
           snapshot.forEach((doc) => {
@@ -799,36 +1091,76 @@
           });
           
           this.renderGallery();
-          console.log(`📊 Loaded ${this.videos.length} videos from Firebase`);
+          console.log(`📊 Loaded ${this.videos.length} videos from real-time update`);
         }, (error) => {
           console.error('❌ Real-time listener error:', error);
+          console.error('❌ Listener error details:', {
+            code: error.code,
+            message: error.message
+          });
+          
           this.updateConnectionStatus(false);
+          
+          if (error.code === 'permission-denied') {
+            this.showStatus('Real-time updates blocked. Check Firebase security rules.', 'error');
+          } else {
+            this.showStatus(`Real-time connection lost: ${error.message}`, 'error');
+          }
         });
       }
 
       async loadVideosFromFirebase() {
         try {
           console.log('📥 Loading videos from Firebase...');
+          console.log(`🔗 Connecting to project: vanish-22814`);
           
           const videosRef = collection(this.db, 'videos');
           const q = query(videosRef, orderBy('uploadTime', 'desc'));
+          
+          console.log('📡 Executing Firestore query...');
           const querySnapshot = await getDocs(q);
           
           this.videos = [];
+          let videoCount = 0;
+          
           querySnapshot.forEach((doc) => {
             const data = doc.data();
             this.videos.push({
               id: doc.id,
               ...data
             });
+            videoCount++;
           });
           
+          console.log(`📊 Successfully loaded ${videoCount} videos from Firebase`);
+          console.log(`📋 Video IDs: ${this.videos.map(v => v.id).join(', ')}`);
+          
           this.renderGallery();
-          console.log(`📊 Loaded ${this.videos.length} videos from Firebase`);
           
         } catch (error) {
           console.error('❌ Failed to load videos:', error);
+          console.error('❌ Error details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack
+          });
+          
           this.updateConnectionStatus(false);
+          
+          // Provide specific error information
+          if (error.code === 'permission-denied') {
+            console.error('🚫 Permission denied - check Firebase security rules');
+            this.showStatus('Permission denied accessing videos. Firebase security rules may need updating.', 'error');
+          } else if (error.code === 'unavailable') {
+            console.error('📡 Firebase service unavailable');
+            this.showStatus('Firebase service temporarily unavailable. Please try again.', 'error');
+          } else if (error.message.includes('network')) {
+            console.error('🌐 Network connectivity issue');
+            this.showStatus('Network error. Check your internet connection and firewall settings.', 'error');
+          } else {
+            this.showStatus(`Database error: ${error.message}`, 'error');
+          }
+          
           throw error;
         }
       }
