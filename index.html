@@ -102,6 +102,18 @@
       color: #fc8181;
     }
 
+    .security-indicator {
+      display: inline-block;
+      margin-left: 1rem;
+      padding: 0.3rem 0.8rem;
+      background: rgba(161, 95, 204, 0.2);
+      border: 1px solid rgba(161, 95, 204, 0.4);
+      border-radius: 15px;
+      color: #d3c0f9;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
     .upload-section {
       background: rgba(46, 46, 68, 0.6);
       border: 2px solid rgba(161, 95, 204, 0.3);
@@ -445,6 +457,7 @@
       <p class="tagline">Global video platform - Share videos that vanish at midnight CST</p>
       <div class="global-indicator">🌍 Global Platform Active</div>
       <div id="connectionStatus" class="connection-status disconnected">🔴 Connecting to Firebase...</div>
+      <div id="securityStatus" class="security-indicator">🔒 Authenticating...</div>
     </div>
 
     <div class="stats" id="statsSection">
@@ -518,6 +531,7 @@
     // Import Firebase modules
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getFirestore, collection, addDoc, getDocs, onSnapshot, query, orderBy, deleteDoc, doc, where, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
     // Firebase configuration
     const firebaseConfig = {
@@ -533,19 +547,23 @@
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
     console.log('🚀 Firebase initialized successfully!');
 
     class VanishGlobalPlatform {
       constructor() {
-        console.log('📱 Initializing VanishGlobalPlatform with Firebase...');
+        console.log('📱 Initializing VanishGlobalPlatform with Firebase Authentication...');
         
         this.videos = [];
         this.db = db;
+        this.auth = auth;
         this.isConnected = false;
+        this.isAuthenticated = false;
+        this.currentUser = null;
         this.maxFileSize = 2.9 * 1024 * 1024; // 2.9MB to stay under 3MB limit
         this.currentBlobUrls = new Set(); // Track blob URLs for cleanup
-        this.userId = this.generateUserId(); // Unique user ID for this session
+        this.userId = null; // Will be set after authentication
         this.userDocRef = null; // Reference to user's presence document
         this.activeUsers = 0; // Current active user count
         
@@ -556,8 +574,8 @@
           this.initializeEventListeners();
           console.log('✅ Event listeners initialized');
           
-          this.initializeFirebase();
-          console.log('✅ Firebase connection started');
+          this.initializeAuthentication();
+          console.log('✅ Authentication started');
           
           this.startStatsUpdater();
           console.log('✅ Stats updater started');
@@ -565,13 +583,11 @@
           this.startMidnightCleaner();
           console.log('✅ Midnight cleaner started');
           
-          this.initializeUserPresence();
-          console.log('✅ User presence tracking started');
-          
           console.log('🎉 Initialization complete!');
         } catch (error) {
           console.error('❌ Initialization failed:', error);
           this.updateConnectionStatus(false);
+          this.updateSecurityStatus('error');
         }
       }
 
@@ -595,6 +611,7 @@
         this.onlineUsers = document.getElementById('onlineUsers');
         this.timeToMidnight = document.getElementById('timeToMidnight');
         this.connectionStatus = document.getElementById('connectionStatus');
+        this.securityStatus = document.getElementById('securityStatus');
         this.compressionOptions = document.getElementById('compressionOptions');
         this.qualitySlider = document.getElementById('qualitySlider');
         this.qualityValue = document.getElementById('qualityValue');
@@ -639,6 +656,65 @@
           this.qualitySlider.addEventListener('input', (e) => {
             this.qualityValue.textContent = e.target.value;
           });
+        }
+      }
+
+      async initializeAuthentication() {
+        console.log('🔐 Initializing Firebase Authentication...');
+        
+        try {
+          // Set up auth state listener
+          onAuthStateChanged(this.auth, (user) => {
+            if (user) {
+              console.log('✅ User authenticated:', user.uid);
+              this.currentUser = user;
+              this.userId = user.uid;
+              this.isAuthenticated = true;
+              this.updateSecurityStatus('authenticated');
+              this.initializeFirebase();
+              this.initializeUserPresence();
+            } else {
+              console.log('❌ User not authenticated');
+              this.isAuthenticated = false;
+              this.updateSecurityStatus('unauthenticated');
+            }
+            this.validateForm();
+          });
+
+          // Sign in anonymously
+          console.log('🔓 Signing in anonymously...');
+          this.updateSecurityStatus('authenticating');
+          
+          const userCredential = await signInAnonymously(this.auth);
+          console.log('✅ Anonymous sign-in successful:', userCredential.user.uid);
+          
+        } catch (error) {
+          console.error('❌ Authentication failed:', error);
+          this.updateSecurityStatus('error');
+          this.showStatus(`Authentication failed: ${error.message}. Please refresh the page.`, 'error');
+        }
+      }
+
+      updateSecurityStatus(status) {
+        const securityStatus = this.securityStatus;
+        
+        switch (status) {
+          case 'authenticating':
+            securityStatus.textContent = '🔐 Authenticating...';
+            securityStatus.style.color = '#d3c0f9';
+            break;
+          case 'authenticated':
+            securityStatus.textContent = '🟢 Secured';
+            securityStatus.style.color = '#68d391';
+            break;
+          case 'unauthenticated':
+            securityStatus.textContent = '🔴 Authentication Required';
+            securityStatus.style.color = '#fc8181';
+            break;
+          case 'error':
+            securityStatus.textContent = '⚠️ Auth Error';
+            securityStatus.style.color = '#fc8181';
+            break;
         }
       }
 
@@ -763,27 +839,27 @@
         });
       }
 
-      generateUserId() {
-        // Generate a unique user ID for this session
-        return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-      }
-
       async initializeUserPresence() {
+        if (!this.isAuthenticated || !this.currentUser) {
+          console.log('⚠️ Cannot initialize presence - user not authenticated');
+          return;
+        }
+
         console.log('👥 Initializing user presence tracking...');
         
         try {
-          // Create user presence document
-          this.userDocRef = doc(this.db, 'active_users', this.userId);
+          // Create user presence document using authenticated user ID
+          this.userDocRef = doc(this.db, 'active_users', this.currentUser.uid);
           
           await setDoc(this.userDocRef, {
-            userId: this.userId,
+            userId: this.currentUser.uid,
             lastSeen: serverTimestamp(),
             joinedAt: serverTimestamp(),
             userAgent: navigator.userAgent.substring(0, 100), // First 100 chars
             page: 'main'
           });
           
-          console.log(`✅ User presence created: ${this.userId}`);
+          console.log(`✅ User presence created: ${this.currentUser.uid}`);
           
           // Set up real-time active users listener
           this.setupActiveUsersListener();
@@ -800,6 +876,8 @@
       }
 
       setupActiveUsersListener() {
+        if (!this.isAuthenticated) return;
+        
         console.log('👂 Setting up active users listener...');
         
         const activeUsersRef = collection(this.db, 'active_users');
@@ -848,14 +926,6 @@
             deleteDoc(doc(this.db, 'active_users', userId))
           );
           
-          // Delete all active users (clean slate for new day)
-          const activeUsersRef = collection(this.db, 'active_users');
-          const activeUsersSnapshot = await getDocs(activeUsersRef);
-          
-          activeUsersSnapshot.forEach((doc) => {
-            deletePromises.push(deleteDoc(doc.ref));
-          });
-          
           await Promise.all(deletePromises);
           console.log(`✅ Cleaned up ${expiredUserIds.length} expired users`);
           
@@ -865,9 +935,11 @@
       }
 
       startPresenceUpdater() {
+        if (!this.isAuthenticated) return;
+        
         // Update presence every 30 seconds
         setInterval(async () => {
-          if (this.userDocRef && !document.hidden) {
+          if (this.userDocRef && !document.hidden && this.isAuthenticated) {
             try {
               await setDoc(this.userDocRef, {
                 lastSeen: serverTimestamp(),
@@ -888,11 +960,10 @@
         document.addEventListener('visibilitychange', async () => {
           if (document.hidden) {
             console.log('👻 Page hidden, user went inactive');
-            // Optional: Mark as inactive immediately
           } else {
             console.log('👀 Page visible, user became active');
             // Update presence when user comes back
-            if (this.userDocRef) {
+            if (this.userDocRef && this.isAuthenticated) {
               try {
                 await setDoc(this.userDocRef, {
                   lastSeen: serverTimestamp(),
@@ -907,23 +978,20 @@
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
-          // Use sendBeacon for reliable cleanup
-          if (this.userDocRef && navigator.sendBeacon) {
+          if (this.userDocRef && navigator.sendBeacon && this.isAuthenticated) {
             const cleanupData = JSON.stringify({
               action: 'cleanup_user',
-              userId: this.userId
+              userId: this.currentUser?.uid
             });
             
-            // This would need a server endpoint, but we can try direct cleanup
             navigator.sendBeacon('/cleanup', cleanupData);
           }
         });
 
         // Fallback cleanup using pagehide
         window.addEventListener('pagehide', async () => {
-          if (this.userDocRef) {
+          if (this.userDocRef && this.isAuthenticated) {
             try {
-              // Quick cleanup attempt
               await deleteDoc(this.userDocRef);
               console.log('👋 User presence cleaned up on page unload');
             } catch (error) {
@@ -941,6 +1009,11 @@
       }
 
       async initializeFirebase() {
+        if (!this.isAuthenticated) {
+          console.log('⚠️ Cannot initialize Firebase - user not authenticated');
+          return;
+        }
+
         try {
           console.log('🔥 Connecting to Firebase...');
           console.log('🌐 Testing network connectivity...');
@@ -991,7 +1064,6 @@
             this.showStatus(`Failed to connect to Firebase: ${error.message}. Please refresh and try again.`, 'error');
           }
 
-          // Try to show cached/local content or provide manual refresh option
           this.showFailsafeOptions();
         }
       }
@@ -1009,10 +1081,11 @@
           // Try to write to active_users (test write permissions)
           console.log('🧪 Testing Firebase write permissions...');
           const testUserId = 'test_' + Date.now();
-          const testUserRef = doc(this.db, 'active_users', testUserId);
+          const testUserRef = doc(this.db, 'active_users', this.currentUser.uid + '_test');
           await setDoc(testUserRef, {
             test: true,
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            owner: this.currentUser.uid
           });
           
           // Clean up test document
@@ -1028,7 +1101,6 @@
       showFailsafeOptions() {
         console.log('🆘 Showing failsafe options...');
         
-        // Show a retry button and troubleshooting info
         this.gallery.innerHTML = `
           <div class="empty-gallery">
             <h3 style="color: #fc8181; margin-bottom: 1rem;">🔥 Firebase Connection Failed</h3>
@@ -1071,6 +1143,8 @@
       }
 
       setupRealtimeListener() {
+        if (!this.isAuthenticated) return;
+        
         console.log('👂 Setting up real-time listener...');
         
         const videosRef = collection(this.db, 'videos');
@@ -1110,6 +1184,11 @@
       }
 
       async loadVideosFromFirebase() {
+        if (!this.isAuthenticated) {
+          console.log('⚠️ Cannot load videos - user not authenticated');
+          return;
+        }
+
         try {
           console.log('📥 Loading videos from Firebase...');
           console.log(`🔗 Connecting to project: vanish-22814`);
@@ -1147,7 +1226,6 @@
           
           this.updateConnectionStatus(false);
           
-          // Provide specific error information
           if (error.code === 'permission-denied') {
             console.error('🚫 Permission denied - check Firebase security rules');
             this.showStatus('Permission denied accessing videos. Firebase security rules may need updating.', 'error');
@@ -1181,14 +1259,19 @@
         const hasTitle = this.titleInput.value.trim().length > 0;
         const hasFile = this.fileInput.files.length > 0;
         
-        this.uploadBtn.disabled = !hasTitle || !hasFile || !this.isConnected;
-        return hasTitle && hasFile && this.isConnected;
+        this.uploadBtn.disabled = !hasTitle || !hasFile || !this.isConnected || !this.isAuthenticated;
+        return hasTitle && hasFile && this.isConnected && this.isAuthenticated;
       }
 
       async handleUpload() {
-        console.log('🚀 STARTING FIREBASE UPLOAD!');
+        console.log('🚀 STARTING SECURE FIREBASE UPLOAD!');
         
         try {
+          if (!this.isAuthenticated) {
+            this.showStatus('Authentication required. Please wait for authentication to complete.', 'error');
+            return;
+          }
+
           if (!this.isConnected) {
             this.showStatus('Not connected to Firebase. Please check your internet connection.', 'error');
             return;
@@ -1203,7 +1286,8 @@
           const title = this.titleInput.value.trim();
           const quality = parseFloat(this.qualitySlider.value);
 
-          console.log(`📤 Starting upload process: "${title}" (${file.size} bytes)`);
+          console.log(`📤 Starting secure upload process: "${title}" (${file.size} bytes)`);
+          console.log(`👤 Authenticated user: ${this.currentUser.uid}`);
           
           this.uploadBtn.disabled = true;
           this.showProgress(5);
@@ -1218,9 +1302,7 @@
               console.log(`✅ Compression complete. New size: ${file.size} bytes`);
               this.showProgress(40);
               
-              // Check if still too large after compression
               if (file.size > this.maxFileSize) {
-                // Try with lower quality
                 console.log('📉 Still too large, trying lower quality...');
                 this.showStatus('🗜️ Applying maximum compression...', 'loading');
                 file = await this.compressVideo(this.fileInput.files[0], 0.3);
@@ -1251,11 +1333,11 @@
           const thumbnailData = await this.generateThumbnail(file);
           this.showProgress(70);
 
-          // Prepare video data
+          // Prepare video data with owner field for security rules
           const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
           const maxChunkSize = 800000; // 800KB chunks
           
-          this.showStatus('Preparing video for upload...', 'loading');
+          this.showStatus('Preparing secure upload...', 'loading');
           this.showProgress(75);
 
           if (videoBase64.length > maxChunkSize) {
@@ -1275,7 +1357,7 @@
           this.fileInput.value = '';
           this.compressionOptions.style.display = 'none';
 
-          this.showStatus('🎉 Video uploaded globally! Everyone can see it now!', 'success');
+          this.showStatus('🎉 Video uploaded securely! Everyone can see it now!', 'success');
           
           setTimeout(() => {
             this.hideStatus();
@@ -1283,12 +1365,12 @@
           }, 3000);
 
         } catch (error) {
-          console.error('❌ Firebase upload failed:', error);
+          console.error('❌ Secure Firebase upload failed:', error);
           
           if (error.code === 'failed-precondition' || error.message.includes('maximum allowed size')) {
             this.showStatus('Video too large for Firebase! Try a smaller file.', 'error');
           } else if (error.code === 'permission-denied') {
-            this.showStatus('Permission denied. Check Firebase security rules.', 'error');
+            this.showStatus('Permission denied. Upload blocked by security rules.', 'error');
           } else if (error.message.includes('too large')) {
             this.showStatus('Video file too large. Please try a smaller video.', 'error');
           } else {
@@ -1300,7 +1382,7 @@
       }
 
       async uploadSingleVideo(videoId, title, videoBase64, thumbnailData, file) {
-        console.log('📄 Uploading single document...');
+        console.log('📄 Uploading single document with security...');
         
         const videoData = {
           id: videoId,
@@ -1313,18 +1395,19 @@
           fileName: file.name,
           fileType: file.type,
           location: this.getRandomLocation(),
-          isChunked: false
+          isChunked: false,
+          owner: this.currentUser.uid // Required for security rules
         };
 
-        this.showStatus('Uploading to Firebase...', 'loading');
+        this.showStatus('Uploading to Firebase securely...', 'loading');
         this.showProgress(90);
 
         await addDoc(collection(this.db, 'videos'), videoData);
-        console.log('✅ Single video uploaded to Firebase');
+        console.log('✅ Secure single video uploaded to Firebase');
       }
 
       async uploadChunkedVideo(videoId, title, videoBase64, thumbnailData, file) {
-        console.log('📦 Uploading chunked video...');
+        console.log('📦 Uploading chunked video with security...');
         
         const maxChunkSize = 800000; // 800KB chunks
         const chunks = [];
@@ -1335,7 +1418,7 @@
         }
         
         console.log(`📦 Split video into ${chunks.length} chunks`);
-        this.showStatus(`Uploading video in ${chunks.length} parts...`, 'loading');
+        this.showStatus(`Uploading video securely in ${chunks.length} parts...`, 'loading');
 
         // Upload main video document (metadata only)
         const mainVideo = {
@@ -1350,18 +1433,20 @@
           location: this.getRandomLocation(),
           isChunked: true,
           totalChunks: chunks.length,
-          videoData: '' // Empty for chunked videos
+          videoData: '', // Empty for chunked videos
+          owner: this.currentUser.uid // Required for security rules
         };
 
         await addDoc(collection(this.db, 'videos'), mainVideo);
         
-        // Upload chunks
+        // Upload chunks with owner field
         const chunkPromises = chunks.map((chunk, index) => {
           const chunkData = {
             videoId: videoId,
             chunkIndex: index,
             chunkData: chunk,
-            uploadTime: new Date().toISOString()
+            uploadTime: new Date().toISOString(),
+            owner: this.currentUser.uid // Required for security rules
           };
           return addDoc(collection(this.db, 'video_chunks'), chunkData);
         });
@@ -1369,7 +1454,7 @@
         this.showProgress(85);
         await Promise.all(chunkPromises);
         
-        console.log(`✅ Chunked video uploaded: ${chunks.length} chunks`);
+        console.log(`✅ Secure chunked video uploaded: ${chunks.length} chunks`);
       }
 
       async fileToBase64(file) {
@@ -1569,6 +1654,10 @@
       }
 
       async loadChunkedVideo(videoId) {
+        if (!this.isAuthenticated) {
+          throw new Error('Authentication required to load video chunks');
+        }
+
         console.log(`📦 Loading chunks for video ${videoId}...`);
         
         try {
@@ -1633,9 +1722,6 @@
       }
 
       updateStats() {
-        // Simulate online users (you could make this real by tracking active connections)
-        this.onlineUsers.textContent = Math.floor(Math.random() * 50) + 10;
-        
         // Calculate time until midnight CST
         const now = new Date();
         const cstOffset = -6 * 60; // CST is UTC-6
@@ -1670,6 +1756,11 @@
       }
 
       async deleteAllVideos() {
+        if (!this.isAuthenticated) {
+          console.log('⚠️ Cannot delete videos - user not authenticated');
+          return;
+        }
+
         try {
           console.log('🗑️ Deleting all videos from Firebase...');
           this.showStatus('🕛 Midnight reset! Deleting all videos...', 'loading');
@@ -1691,9 +1782,17 @@
             deletePromises.push(deleteDoc(doc.ref));
           });
           
+          // Delete all active users (clean slate for new day)
+          const activeUsersRef = collection(this.db, 'active_users');
+          const activeUsersSnapshot = await getDocs(activeUsersRef);
+          
+          activeUsersSnapshot.forEach((doc) => {
+            deletePromises.push(deleteDoc(doc.ref));
+          });
+          
           await Promise.all(deletePromises);
           
-          console.log('✅ All videos and chunks deleted successfully!');
+          console.log('✅ All videos, chunks, and user sessions deleted successfully!');
           this.showStatus('🌅 Fresh start! All videos have been deleted at midnight CST.', 'success');
           
           setTimeout(() => {
