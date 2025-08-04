@@ -454,8 +454,8 @@
     <div class="header">
       <div class="creator-badge">Made By: U2FtIE0u</div>
       <h1>Vanish</h1>
-      <p class="tagline">Global video platform - Share videos that vanish at midnight CST</p>
-      <div class="global-indicator">🌍 Global Platform Active</div>
+      <p class="tagline">Share your class, and watch it fade away at night</p>
+      <div class="global-indicator">🌍 Platform Active</div>
       <div id="connectionStatus" class="connection-status disconnected">🔴 Connecting to Firebase...</div>
       <div id="securityStatus" class="security-indicator">🔒 Authenticating...</div>
     </div>
@@ -478,7 +478,7 @@
     <div id="uploadSection" class="upload-section">
       <div class="input-group">
         <label for="titleInput">Video Title</label>
-        <input type="text" id="titleInput" placeholder="Enter a catchy title for your video" autocomplete="off" maxlength="100" />
+        <input type="text" id="titleInput" placeholder="Enter a title for your video" autocomplete="off" maxlength="100" />
       </div>
       
       <div class="input-group">
@@ -503,7 +503,7 @@
       </div>
       
       <button id="uploadBtn" class="upload-btn" type="button">
-        🌍 Upload Video Globally
+        🌍 Upload Video
       </button>
       
       <div id="uploadProgress" class="upload-progress" style="display: none;">
@@ -1248,7 +1248,7 @@
         
         if (connected) {
           this.connectionStatus.className = 'connection-status connected';
-          this.connectionStatus.textContent = '🟢 Connected to Firebase';
+          this.connectionStatus.textContent = '🟢 Connected to Servers';
         } else {
           this.connectionStatus.className = 'connection-status disconnected';
           this.connectionStatus.textContent = '🔴 Firebase Disconnected';
@@ -1535,7 +1535,7 @@
           this.gallery.innerHTML = `
             <div class="empty-gallery">
               <p>📹 No videos uploaded yet.</p>
-              <p>Be the first to share a video globally!</p>
+              <p>Be the first to share a video</p>
             </div>
           `;
           this.totalVideos.textContent = '0';
@@ -1544,7 +1544,7 @@
 
         this.gallery.innerHTML = this.videos.map((video, index) => `
           <div class="video-card" onclick="vanishApp.showVideo(${index})" data-index="${index}">
-            <div class="global-badge">GLOBAL</div>
+            <div class="global-badge">Watch Now</div>
             <img src="${video.thumbnail}" alt="${video.title}" class="video-thumbnail" loading="lazy" />
             <div class="video-info">
               <h3 class="video-title">${this.escapeHtml(video.title)}</h3>
