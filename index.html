@@ -1,10 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
+<!DOCTYPE html> 
+<html lang="en"><head>
+  <meta charset="UTF-8">
   <title>Vanish - Global Video Platform</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     * {
       box-sizing: border-box;
@@ -199,6 +198,22 @@
       position: relative;
       overflow: hidden;
     }
+    
+        .countdown-timer {
+      margin-top: 0.8rem;
+      text-align: center;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #a15fcc;
+      background: rgba(161, 95, 204, 0.15);
+      border: 1px solid rgba(161, 95, 204, 0.3);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+      display: inline-block;
+      box-shadow: 0 4px 12px rgba(161, 95, 204, 0.2);
+      animation: fadeIn 0.5s ease;
+    }
+
 
     .upload-btn:hover {
       transform: translateY(-2px);
@@ -214,6 +229,31 @@
       cursor: not-allowed;
       transform: none;
     }
+    
+        .upload-progress {
+      width: 100%;
+      height: 6px;
+      background: rgba(161, 95, 204, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 1rem;
+    }
+    
+    .upload-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #a15fcc, #d3c0f9);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    .countdown-timer {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      color: #d3c0f9;
+      font-weight: 600;
+    }
+
 
     .status {
       margin-top: 1rem;
@@ -457,34 +497,34 @@
       <h1>Vanish</h1>
       <p class="tagline"><em>Because forever is boring.</em></p>
       <div class="global-indicator">🌍 Platform Active</div>
-      <div id="connectionStatus" class="connection-status disconnected">🔴 Connecting to Firebase...</div>
-      <div id="securityStatus" class="security-indicator">🔒 Authenticating...</div>
+      <div id="connectionStatus" class="connection-status connected">🟢 Connected to Servers</div>
+      <div id="securityStatus" class="security-indicator" style="color: rgb(104, 211, 145);">🟢 Secured</div>
     </div>
 
     <div class="stats" id="statsSection">
       <div class="stats-item">
-        <div class="stats-value" id="totalVideos">0</div>
+        <div class="stats-value" id="totalVideos">3</div>
         <div>Total Videos</div>
       </div>
       <div class="stats-item">
-        <div class="stats-value" id="onlineUsers">~</div>
+        <div class="stats-value" id="onlineUsers">0</div>
         <div>Active Users</div>
       </div>
       <div class="stats-item">
-        <div class="stats-value" id="timeToMidnight">--:--</div>
+        <div class="stats-value" id="timeToMidnight">01:17</div>
         <div>Until Reset</div>
       </div>
     </div>
 
-    <div id="uploadSection" class="upload-section">
+    <div id="uploadSection" class="upload-section" style="display: block;">
       <div class="input-group">
         <label for="titleInput">Video Title</label>
-        <input type="text" id="titleInput" placeholder="Enter a title for your video" autocomplete="off" maxlength="100" />
+        <input type="text" id="titleInput" placeholder="Enter a title for your video" autocomplete="off" maxlength="100">
       </div>
       
       <div class="input-group">
         <label for="fileInput">Choose Video File</label>
-        <input type="file" id="fileInput" accept="video/*" />
+        <input type="file" id="fileInput" accept="video/*">
         
         <div class="compression-options" id="compressionOptions" style="display: none;">
           <h4>🗜️ Auto-Compression Settings</h4>
@@ -503,24 +543,82 @@
         </div>
       </div>
       
-      <button id="uploadBtn" class="upload-btn" type="button">
+      <button id="uploadBtn" class="upload-btn" type="button" disabled="">
         🌍 Upload Video
       </button>
       
-      <div id="uploadProgress" class="upload-progress" style="display: none;">
-        <div id="uploadProgressBar" class="upload-progress-bar"></div>
-      </div>
-      
-      <div id="status" class="status" style="display: none;"></div>
+     <div id="countdown" class="countdown-timer" style="display:none;">
+      Estimated time left: <span id="countdownValue">00:00</span>
+    </div>
+    
+    <div id="uploadProgress" class="upload-progress" style="display:none;">
+        <div class="upload-progress-bar"></div>
     </div>
 
-    <div id="gallery" class="gallery"></div>
 
-    <div id="videoPage" class="video-page">
+      
+    <div id="countdown" class="countdown-timer" style="display:none;">
+      Estimated time left: <span id="countdownValue">00:00</span>
+    </div>
+          
+      <div id="status" class="status loading" style="display: none;">Loading video...</div>
+    </div>
+
+    <div id="gallery" class="gallery" style="display: grid;">
+          <div class="video-card" onclick="vanishApp.showVideo(0)" data-index="0">
+            <div class="global-badge">Watch Now</div>
+            <img src="data:image/jpeg;base64,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" alt="comp test" class="video-thumbnail" loading="lazy">
+            <div class="video-info">
+              <h3 class="video-title">comp test</h3>
+              <div class="video-meta">
+                <span>Just now</span>
+                <span>1.54 MB</span>
+              </div>
+              <div class="video-meta">
+                <span>📍 Newton, KS</span>
+                <span>👤 anon_acbjtj</span>
+              </div>
+            </div>
+          </div>
+        
+          <div class="video-card" onclick="vanishApp.showVideo(1)" data-index="1">
+            <div class="global-badge">Watch Now</div>
+            <img src="data:image/jpeg;base64,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" alt="compression test" class="video-thumbnail" loading="lazy">
+            <div class="video-info">
+              <h3 class="video-title">compression test</h3>
+              <div class="video-meta">
+                <span>1h ago</span>
+                <span>2.64 MB</span>
+              </div>
+              <div class="video-meta">
+                <span>📍 Newton, KS</span>
+                <span>👤 anon_hxkdyr</span>
+              </div>
+            </div>
+          </div>
+        
+          <div class="video-card" onclick="vanishApp.showVideo(2)" data-index="2">
+            <div class="global-badge">Watch Now</div>
+            <img src="data:image/jpeg;base64,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" alt="glorp" class="video-thumbnail" loading="lazy">
+            <div class="video-info">
+              <h3 class="video-title">glorp</h3>
+              <div class="video-meta">
+                <span>8h ago</span>
+                <span>2.72 MB</span>
+              </div>
+              <div class="video-meta">
+                <span>📍 Newton, KS</span>
+                <span>👤 anon_fuemoe</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+    <div id="videoPage" class="video-page" style="display: none;">
       <button id="backBtn" class="back-btn">← Back to Gallery</button>
       <div class="video-player-container">
-        <h2 id="videoTitle" class="current-video-title"></h2>
-        <video id="videoPlayer" class="video-player" controls preload="metadata"></video>
+        <h2 id="videoTitle" class="current-video-title">comp test</h2>
+        <video id="videoPlayer" class="video-player" controls="" preload="metadata" src=""></video>
       </div>
     </div>
   </div>
@@ -616,6 +714,10 @@
         this.compressionOptions = document.getElementById('compressionOptions');
         this.qualitySlider = document.getElementById('qualitySlider');
         this.qualityValue = document.getElementById('qualityValue');
+        this.uploadProgress = document.getElementById('uploadProgress');
+        this.uploadProgressBar = this.uploadProgress.querySelector('.upload-progress-bar');
+        this.countdown = document.getElementById('countdown');
+        this.countdownValue = document.getElementById('countdownValue');
       }
 
       initializeEventListeners() {
@@ -719,126 +821,153 @@
         }
       }
 
-      async handleFileSelection() {
-        const file = this.fileInput.files[0];
-        if (!file) {
-          this.compressionOptions.style.display = 'none';
-          this.validateForm();
-          return;
-        }
+async compressVideo(file, quality = 0.7) {
+  console.log(`🗜️ Compressing video with quality: ${quality}`);
 
-        console.log(`📄 File selected: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`);
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.createElement('video');
 
-        if (!file.type.startsWith('video/')) {
-          this.showStatus('Please select a valid video file.', 'error');
-          this.fileInput.value = '';
-          this.compressionOptions.style.display = 'none';
-          this.validateForm();
-          return;
-        }
+    video.src = URL.createObjectURL(file);
+    video.muted = true;
+    video.preload = 'metadata';
+    video.crossOrigin = 'anonymous';
 
-        // Show compression options if file exists
-        this.compressionOptions.style.display = 'block';
-        
-        // Check if file needs compression
-        if (file.size > this.maxFileSize) {
-          this.showStatus(`File size: ${this.formatFileSize(file.size)}. Auto-compression will be applied to reduce size.`, 'loading');
-        } else {
-          this.showStatus(`File size: ${this.formatFileSize(file.size)}. Ready to upload!`, 'success');
-        }
+    video.addEventListener('loadedmetadata', () => {
+      const aspectRatio = video.videoWidth / video.videoHeight;
 
-        this.validateForm();
+      let targetWidth = video.videoWidth;
+      let targetHeight = video.videoHeight;
+
+      if (quality < 0.5) {
+        targetWidth = Math.floor(video.videoWidth * 0.6);
+        targetHeight = Math.floor(video.videoHeight * 0.6);
+      } else if (quality < 0.7) {
+        targetWidth = Math.floor(video.videoWidth * 0.8);
+        targetHeight = Math.floor(video.videoHeight * 0.8);
       }
 
-      async compressVideo(file, quality = 0.7) {
-        console.log(`🗜️ Compressing video with quality: ${quality}`);
-        
-        return new Promise((resolve, reject) => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const video = document.createElement('video');
-          
-          video.src = URL.createObjectURL(file);
-          video.muted = true;
-          video.preload = 'metadata';
-          
-          video.addEventListener('loadedmetadata', () => {
-            const aspectRatio = video.videoWidth / video.videoHeight;
-            
-            // Reduce resolution based on quality
-            let targetWidth = video.videoWidth;
-            let targetHeight = video.videoHeight;
-            
-            if (quality < 0.5) {
-              targetWidth = Math.floor(video.videoWidth * 0.6);
-              targetHeight = Math.floor(video.videoHeight * 0.6);
-            } else if (quality < 0.7) {
-              targetWidth = Math.floor(video.videoWidth * 0.8);
-              targetHeight = Math.floor(video.videoHeight * 0.8);
-            }
-            
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
-            
-            // Create MediaRecorder to record compressed video
-            const stream = canvas.captureStream(24); // 24 FPS
-            const mediaRecorder = new MediaRecorder(stream, {
-              mimeType: 'video/webm;codecs=vp8',
-              videoBitsPerSecond: Math.floor(1000000 * quality) // Adjust bitrate based on quality
-            });
-            
-            const chunks = [];
-            mediaRecorder.ondataavailable = (e) => {
-              if (e.data.size > 0) {
-                chunks.push(e.data);
-              }
-            };
-            
-            mediaRecorder.onstop = () => {
-              const compressedBlob = new Blob(chunks, { type: 'video/webm' });
-              console.log(`✅ Compression complete. Original: ${file.size} -> Compressed: ${compressedBlob.size}`);
-              
-              // Create a File object from the blob
-              const compressedFile = new File([compressedBlob], 
-                file.name.replace(/\.[^/.]+$/, '') + '_compressed.webm', 
-                { type: 'video/webm' }
-              );
-              
-              URL.revokeObjectURL(video.src);
-              resolve(compressedFile);
-            };
-            
-            mediaRecorder.onerror = (error) => {
-              console.error('❌ Compression failed:', error);
-              URL.revokeObjectURL(video.src);
-              reject(error);
-            };
-            
-            // Start recording
-            mediaRecorder.start();
-            
-            // Draw video frames to canvas
-            const drawFrame = () => {
-              if (video.currentTime < video.duration) {
-                ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-                requestAnimationFrame(drawFrame);
-              } else {
-                mediaRecorder.stop();
-              }
-            };
-            
-            video.play().then(() => {
-              drawFrame();
-            });
-          });
-          
-          video.addEventListener('error', (error) => {
-            console.error('❌ Video loading failed:', error);
-            URL.revokeObjectURL(video.src);
-            reject(error);
-          });
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      // Countdown element refs
+      const countdownEl = document.getElementById('countdown');
+      const countdownValue = document.getElementById('countdownValue');
+      countdownEl.style.display = 'block';
+
+      let remaining = Math.ceil(video.duration);
+
+      // Format seconds to MM:SS
+      const formatTime = (sec) => {
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+      };
+
+      countdownValue.textContent = formatTime(remaining);
+
+      // Setup countdown interval
+      const timer = setInterval(() => {
+        remaining--;
+        countdownValue.textContent = formatTime(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(timer);
+          countdownEl.textContent = "✅ Compression finished!";
+        }
+      }, 1000);
+
+      // Create a stream for the canvas (video)
+      const videoStream = canvas.captureStream(24); // 24 fps
+
+      // Extract audio track from the original file
+      const audio = document.createElement('audio');
+      audio.src = video.src;
+      audio.crossOrigin = 'anonymous';
+      audio.preload = 'metadata';
+
+      audio.addEventListener('loadedmetadata', () => {
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaElementSource(audio);
+        const dest = audioContext.createMediaStreamDestination();
+        source.connect(dest);
+
+        // Combine video + audio streams
+        const combinedStream = new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...dest.stream.getAudioTracks(),
+        ]);
+
+        // Setup recorder
+        const mediaRecorder = new MediaRecorder(combinedStream, {
+          mimeType: 'video/webm;codecs=vp8,opus',
+          videoBitsPerSecond: Math.floor(1000000 * quality),
         });
-      }
+
+        const chunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          clearInterval(timer);
+          countdownEl.textContent = "✅ Compression finished!";
+
+          const compressedBlob = new Blob(chunks, { type: 'video/webm' });
+          console.log(`✅ Compression complete. Original: ${file.size} → Compressed: ${compressedBlob.size}`);
+
+          const compressedFile = new File([compressedBlob],
+            file.name.replace(/\.[^/.]+$/, '') + '_compressed.webm',
+            { type: 'video/webm' }
+          );
+
+          URL.revokeObjectURL(video.src);
+          resolve(compressedFile);
+        };
+
+        mediaRecorder.onerror = (error) => {
+          clearInterval(timer);
+          console.error('❌ Compression failed:', error);
+          countdownEl.style.display = 'none';
+          URL.revokeObjectURL(video.src);
+          reject(error);
+        };
+
+        mediaRecorder.start();
+
+        // Draw video frames
+        const drawFrame = () => {
+          if (video.currentTime < video.duration) {
+            ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+            requestAnimationFrame(drawFrame);
+          } else {
+            mediaRecorder.stop();
+          }
+        };
+
+        // Start playing both muted and silent so no audio output
+        video.play().then(() => {
+          audio.play();
+          drawFrame();
+        });
+      });
+
+      audio.addEventListener('error', (e) => {
+        clearInterval(timer);
+        countdownEl.style.display = 'none';
+        console.error('❌ Audio loading failed:', e);
+        reject(e);
+      });
+    });
+
+    video.addEventListener('error', (e) => {
+      console.error('❌ Video loading failed:', e);
+      reject(e);
+    });
+  });
+}
+
 
       async initializeUserPresence() {
         if (!this.isAuthenticated || !this.currentUser) {
@@ -1866,5 +1995,5 @@
     // Initialize the app and make it globally accessible
     window.vanishApp = new VanishGlobalPlatform();
   </script>
-</body>
-</html>
+
+</body></html>
