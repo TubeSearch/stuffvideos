@@ -1808,7 +1808,6 @@ async compressVideo(file, quality = 0.7) {
         console.log('🏠 Showing gallery');
         this.videoPlayer.pause();
         this.videoPlayer.src = '';
-        
         // Clean up blob URLs when leaving video page
         this.cleanupBlobUrls();
         
@@ -1843,18 +1842,26 @@ async compressVideo(file, quality = 0.7) {
 
       startMidnightCleaner() {
         console.log('🕛 Starting midnight cleaner...');
-        
-        // Check every minute if it's midnight CST
+
+        // Track the last date videos were deleted
+        let lastDeletedDate = null;
+
         setInterval(async () => {
           const now = new Date();
           const cstOffset = -6 * 60; // CST is UTC-6
           const nowCST = new Date(now.getTime() + (now.getTimezoneOffset() + cstOffset) * 60 * 1000);
-          
-          // Check if it's midnight CST (00:00)
-          if (nowCST.getHours() === 0 && nowCST.getMinutes() === 0) {
+
+          const hours = nowCST.getHours();
+          const minutes = nowCST.getMinutes();
+          const currentDateStr = nowCST.toISOString().slice(0, 10); // YYYY-MM-DD
+
+          // Delete once per day, during 00:00-00:04 CST
+          if (hours === 0 && minutes < 5 && lastDeletedDate !== currentDateStr) {
             console.log('🕛 MIDNIGHT CST! Deleting all videos...');
+            lastDeletedDate = currentDateStr;
             await this.deleteAllVideos();
           }
+
         }, 60000); // Check every minute
       }
 
@@ -1868,40 +1875,27 @@ async compressVideo(file, quality = 0.7) {
           console.log('🗑️ Deleting all videos from Firebase...');
           this.showStatus('🕛 Midnight reset! Deleting all videos...', 'loading');
           
-          // Delete all videos
-          const videosRef = collection(this.db, 'videos');
-          const videosSnapshot = await getDocs(videosRef);
-          
           const deletePromises = [];
-          videosSnapshot.forEach((doc) => {
-            deletePromises.push(deleteDoc(doc.ref));
-          });
-          
+
+          // Delete all videos
+          const videosSnapshot = await getDocs(collection(this.db, 'videos'));
+          videosSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
+
           // Delete all video chunks
-          const chunksRef = collection(this.db, 'video_chunks');
-          const chunksSnapshot = await getDocs(chunksRef);
-          
-          chunksSnapshot.forEach((doc) => {
-            deletePromises.push(deleteDoc(doc.ref));
-          });
-          
-          // Delete all active users (clean slate for new day)
-          const activeUsersRef = collection(this.db, 'active_users');
-          const activeUsersSnapshot = await getDocs(activeUsersRef);
-          
-          activeUsersSnapshot.forEach((doc) => {
-            deletePromises.push(deleteDoc(doc.ref));
-          });
-          
+          const chunksSnapshot = await getDocs(collection(this.db, 'video_chunks'));
+          chunksSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
+
+          // Delete all active users
+          const activeUsersSnapshot = await getDocs(collection(this.db, 'active_users'));
+          activeUsersSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
+
           await Promise.all(deletePromises);
-          
+
           console.log('✅ All videos, chunks, and user sessions deleted successfully!');
           this.showStatus('🌅 Fresh start! All videos have been deleted at midnight CST.', 'success');
-          
-          setTimeout(() => {
-            this.hideStatus();
-          }, 5000);
-          
+
+          setTimeout(() => this.hideStatus(), 5000);
+
         } catch (error) {
           console.error('❌ Failed to delete videos:', error);
           this.showStatus('Failed to delete videos. Please refresh the page.', 'error');
