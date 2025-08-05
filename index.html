@@ -353,13 +353,29 @@
       display: none;
       animation: fadeIn 0.5s ease;
     }
-
+    
+    .back-btn {
+      display: block;           /* make it take the full line */
+      margin: 0 auto 2rem auto; /* center horizontally, add bottom margin */
+      background: linear-gradient(45deg, #a15fcc, #d3c0f9);
+      color: #1e1e2f;
+      border: none;
+      border-radius: 12px;
+      padding: 0.8rem 1.5rem;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(161, 95, 204, 0.4);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .back-btn {
+    . {
       background: rgba(161, 95, 204, 0.8);
       color: white;
       border: none;
@@ -372,7 +388,7 @@
       backdrop-filter: blur(10px);
     }
 
-    .back-btn:hover {
+    .:hover {
       background: #a15fcc;
       transform: translateX(-3px);
     }
@@ -381,7 +397,7 @@
       text-align: center;
       margin-bottom: 2rem;
     }
-
+Z
     .video-player {
       max-width: 100%;
       max-height: 70vh;
@@ -486,6 +502,9 @@
       .stats-item {
         display: block;
         margin: 0.5rem 0;
+        
+        
+        
       }
     }
   </style>
@@ -570,7 +589,7 @@
             </div>
 
     <div id="videoPage" class="video-page" style="display: none;">
-      <button id="backBtn" class="back-btn">← Back to Gallery</button>
+      <button id="backBtn" class="back-btn">← Back to Videos</button>
       <div class="video-player-container">
         <h2 id="videoTitle" class="current-video-title">comp test</h2>
         <video id="videoPlayer" class="video-player" controls="" preload="metadata" src=""></video>
