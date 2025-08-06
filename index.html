@@ -622,6 +622,28 @@ Z
     const auth = getAuth(app);
 
     console.log('🚀 Firebase initialized successfully!');
+    
+ window.deleteAllVideos = async function deleteAllVideos() {
+  if (!confirm("Are you sure you want to delete ALL videos?")) return;
+
+  try {
+    const videosCol = collection(db, "videos");
+    const videosSnapshot = await getDocs(videosCol);
+
+    const batch = writeBatch(db);
+
+    videosSnapshot.forEach((docSnap) => {
+      batch.delete(doc(db, "videos", docSnap.id));
+    });
+
+    await batch.commit();
+    console.log("All videos deleted!");
+  } catch (error) {
+    console.error("Error deleting videos:", error);
+  }
+};
+
+
 
     class VanishGlobalPlatform {
       constructor() {
