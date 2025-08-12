@@ -693,6 +693,40 @@ const storage = getStorage(app);
         this.activeUsers = 0; // Current active user count
         
         try {
+        this.initializeElements = function() {
+          console.log('🔍 Finding DOM elements...');
+          
+          this.uploadBtn = document.getElementById('uploadBtn');
+          this.fileInput = document.getElementById('fileInput');
+          this.status = document.getElementById('status');
+          this.titleInput = document.getElementById('titleInput');
+          this.gallery = document.getElementById('gallery');
+          this.videoPage = document.getElementById('videoPage');
+          this.videoPlayer = document.getElementById('videoPlayer');
+          this.videoTitle = document.getElementById('videoTitle');
+          this.backBtn = document.getElementById('backBtn');
+          this.uploadSection = document.getElementById('uploadSection');
+          this.uploadProgress = document.getElementById('uploadProgress');
+          this.uploadProgressBar = document.getElementById('uploadProgressBar');
+          this.refreshBtn = document.getElementById('refreshBtn');
+          this.totalVideos = document.getElementById('totalVideos');
+          this.onlineUsers = document.getElementById('onlineUsers');
+          this.timeToMidnight = document.getElementById('timeToMidnight');
+          this.connectionStatus = document.getElementById('connectionStatus');
+          this.securityStatus = document.getElementById('securityStatus');
+          this.compressionOptions = document.getElementById('compressionOptions');
+          this.qualitySlider = document.getElementById('qualitySlider');
+          this.qualityValue = document.getElementById('qualityValue');
+          this.countdown = document.getElementById('countdown');
+          this.countdownValue = document.getElementById('countdownValue');
+          
+          // Remove duplicate uploadProgress assignment
+          if (this.uploadProgress) {
+            this.uploadProgressBar = this.uploadProgress.querySelector('.upload-progress-bar');
+          }
+          
+          console.log('✅ DOM elements initialized');
+        };
           this.initializeElements();
           console.log('✅ Elements initialized');
           
@@ -715,40 +749,6 @@ const storage = getStorage(app);
           this.updateSecurityStatus('error');
              }
 
-  initializeElements() {
-    console.log('🔍 Finding DOM elements...');
-    
-    this.uploadBtn = document.getElementById('uploadBtn');
-    this.fileInput = document.getElementById('fileInput');
-    this.status = document.getElementById('status');
-    this.titleInput = document.getElementById('titleInput');
-    this.gallery = document.getElementById('gallery');
-    this.videoPage = document.getElementById('videoPage');
-    this.videoPlayer = document.getElementById('videoPlayer');
-    this.videoTitle = document.getElementById('videoTitle');
-    this.backBtn = document.getElementById('backBtn');
-    this.uploadSection = document.getElementById('uploadSection');
-    this.uploadProgress = document.getElementById('uploadProgress');
-    this.uploadProgressBar = document.getElementById('uploadProgressBar');
-    this.refreshBtn = document.getElementById('refreshBtn');
-    this.totalVideos = document.getElementById('totalVideos');
-    this.onlineUsers = document.getElementById('onlineUsers');
-    this.timeToMidnight = document.getElementById('timeToMidnight');
-    this.connectionStatus = document.getElementById('connectionStatus');
-    this.securityStatus = document.getElementById('securityStatus');
-    this.compressionOptions = document.getElementById('compressionOptions');
-    this.qualitySlider = document.getElementById('qualitySlider');
-    this.qualityValue = document.getElementById('qualityValue');
-    this.countdown = document.getElementById('countdown');
-    this.countdownValue = document.getElementById('countdownValue');
-    
-    // Remove duplicate uploadProgress assignment
-    if (this.uploadProgress) {
-      this.uploadProgressBar = this.uploadProgress.querySelector('.upload-progress-bar');
-    }
-    
-    console.log('✅ DOM elements initialized');
-  }
 
   initializeEventListeners() {
     console.log('🎯 Setting up event listeners...');
@@ -1834,6 +1834,7 @@ renderGallery() {
       try {
         // Prefer Firebase Storage download URL (most common case)
         if (video.downloadURL) {
+          console.log('DEBUG: Setting videoPlayer.src ->', video.downloadURL);
           this.videoPlayer.src = video.downloadURL;
         } else if (video.isChunked) {
           this.showStatus('Loading video...', 'loading');
@@ -1841,6 +1842,7 @@ renderGallery() {
           const blob = this.base64ToBlob(videoData);
           const url = URL.createObjectURL(blob);
           this._lastBlobUrl = url;
+          console.log('DEBUG: Setting videoPlayer.src ->', url);
           this.videoPlayer.src = url;
           this.hideStatus();
         } else if (video.videoData) {
@@ -1848,6 +1850,7 @@ renderGallery() {
           const blob = this.base64ToBlob(video.videoData);
           const url = URL.createObjectURL(blob);
           this._lastBlobUrl = url;
+          console.log('DEBUG: Setting videoPlayer.src ->', url);
           this.videoPlayer.src = url;
           this.hideStatus();
         } else {
