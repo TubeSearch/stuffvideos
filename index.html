@@ -705,48 +705,42 @@ Z
           console.error('❌ Initialization failed:', error);
           this.updateConnectionStatus(false);
           this.updateSecurityStatus('error');
-        }
-      }
+             }
+           } // <-- This closing brace was missing!
 
-      initializeElements() {
-        console.log('🔍 Finding DOM elements...');
-        
-        this.uploadBtn = document.getElementById('uploadBtn');
-        this.fileInput = document.getElementById('fileInput');
-        this.status = document.getElementById('status');
-        this.titleInput = document.getElementById('titleInput');
-        this.gallery = document.getElementById('gallery');
-        this.videoPage = document.getElementById('videoPage');
-        this.videoPlayer = document.getElementById('videoPlayer');
-        this.videoTitle = document.getElementById('videoTitle');
-        this.backBtn = document.getElementById('backBtn');
-        this.uploadSection = document.getElementById('uploadSection');
-        this.uploadProgress = document.getElementById('uploadProgress');
-        this.uploadProgressBar = document.getElementById('uploadProgressBar');
-        this.refreshBtn = document.getElementById('refreshBtn');
-        this.totalVideos = document.getElementById('totalVideos');
-        this.onlineUsers = document.getElementById('onlineUsers');
-        this.timeToMidnight = document.getElementById('timeToMidnight');
-        this.connectionStatus = document.getElementById('connectionStatus');
-        this.securityStatus = document.getElementById('securityStatus');
-        this.compressionOptions = document.getElementById('compressionOptions');
-        this.qualitySlider = document.getElementById('qualitySlider');
-        this.qualityValue = document.getElementById('qualityValue');
-        this.uploadProgress = document.getElementById('uploadProgress');
-        this.uploadProgressBar = this.uploadProgress.querySelector('.upload-progress-bar');
-        this.countdown = document.getElementById('countdown');
-        this.countdownValue = document.getElementById('countdownValue');
-      }
-
-class VideoUploader {
-  constructor() {
-    // Initialize the improved video compressor
-    this.videoCompressor = new VideoCompressor();
+  initializeElements() {
+    console.log('🔍 Finding DOM elements...');
     
-    // Your existing initialization...
-    this.initializeElements();
-    this.initializeEventListeners();
-    this.initializeAuthentication();
+    this.uploadBtn = document.getElementById('uploadBtn');
+    this.fileInput = document.getElementById('fileInput');
+    this.status = document.getElementById('status');
+    this.titleInput = document.getElementById('titleInput');
+    this.gallery = document.getElementById('gallery');
+    this.videoPage = document.getElementById('videoPage');
+    this.videoPlayer = document.getElementById('videoPlayer');
+    this.videoTitle = document.getElementById('videoTitle');
+    this.backBtn = document.getElementById('backBtn');
+    this.uploadSection = document.getElementById('uploadSection');
+    this.uploadProgress = document.getElementById('uploadProgress');
+    this.uploadProgressBar = document.getElementById('uploadProgressBar');
+    this.refreshBtn = document.getElementById('refreshBtn');
+    this.totalVideos = document.getElementById('totalVideos');
+    this.onlineUsers = document.getElementById('onlineUsers');
+    this.timeToMidnight = document.getElementById('timeToMidnight');
+    this.connectionStatus = document.getElementById('connectionStatus');
+    this.securityStatus = document.getElementById('securityStatus');
+    this.compressionOptions = document.getElementById('compressionOptions');
+    this.qualitySlider = document.getElementById('qualitySlider');
+    this.qualityValue = document.getElementById('qualityValue');
+    this.countdown = document.getElementById('countdown');
+    this.countdownValue = document.getElementById('countdownValue');
+    
+    // Remove duplicate uploadProgress assignment
+    if (this.uploadProgress) {
+      this.uploadProgressBar = this.uploadProgress.querySelector('.upload-progress-bar');
+    }
+    
+    console.log('✅ DOM elements initialized');
   }
 
   initializeEventListeners() {
@@ -786,100 +780,81 @@ class VideoUploader {
 
     if (this.qualitySlider) {
       this.qualitySlider.addEventListener('input', (e) => {
-        this.qualityValue.textContent = e.target.value;
-      });
-    }
-  }
-
-  async initializeAuthentication() {
-    console.log('🔐 Initializing Firebase Authentication...');
-    
-    try {
-      // Set up auth state listener
-      onAuthStateChanged(this.auth, (user) => {
-        if (user) {
-          console.log('✅ User authenticated:', user.uid);
-          this.currentUser = user;
-          this.userId = user.uid;
-          this.isAuthenticated = true;
-          this.updateSecurityStatus('authenticated');
-          this.initializeFirebase();
-          this.initializeUserPresence();
-        } else {
-          console.log('❌ User not authenticated');
-          this.isAuthenticated = false;
-          this.updateSecurityStatus('unauthenticated');
+        if (this.qualityValue) {
+          this.qualityValue.textContent = e.target.value;
         }
-        this.validateForm();
       });
-
-      // Sign in anonymously
-      console.log('🔓 Signing in anonymously...');
-      this.updateSecurityStatus('authenticating');
-      
-      const userCredential = await signInAnonymously(this.auth);
-      console.log('✅ Anonymous sign-in successful:', userCredential.user.uid);
-      
-    } catch (error) {
-      console.error('❌ Authentication failed:', error);
-      this.updateSecurityStatus('error');
-      this.showStatus(`Authentication failed: ${error.message}. Please refresh the page.`, 'error');
     }
-  }
-
-  updateSecurityStatus(status) {
-    const securityStatus = this.securityStatus;
     
-    switch (status) {
-      case 'authenticating':
-        securityStatus.textContent = '🔐 Authenticating...';
-        securityStatus.style.color = '#d3c0f9';
-        break;
-      case 'authenticated':
-        securityStatus.textContent = '🟢 Secured';
-        securityStatus.style.color = '#68d391';
-        break;
-      case 'unauthenticated':
-        securityStatus.textContent = '🔴 Authentication Required';
-        securityStatus.style.color = '#fc8181';
-        break;
-      case 'error':
-        securityStatus.textContent = '⚠️ Auth Error';
-        securityStatus.style.color = '#fc8181';
-        break;
-    }
+    console.log('✅ Event listeners initialized');
   }
 
-  // Updated method to use the new compressor
+  // Continue with your other methods...
   async handleUpload() {
-    if (!this.selectedFile || !this.isAuthenticated) {
-      console.log('❌ Cannot upload: file or authentication missing');
-      return;
-    }
-
+    console.log('🚀 STARTING FIREBASE STORAGE UPLOAD!');
+    
     try {
-      this.showStatus('🗜️ Compressing video...', 'info');
+      if (!this.isAuthenticated) {
+        this.showStatus('Authentication required. Please wait for authentication to complete.', 'error');
+        return;
+      }
+
+      if (!this.isConnected) {
+        this.showStatus('Not connected to Firebase. Please check your internet connection.', 'error');
+        return;
+      }
+
+      if (!this.validateForm()) {
+        this.showStatus('Please fill in all fields before uploading.', 'error');
+        return;
+      }
+
+      let file = this.fileInput.files[0];
+      if (!file) {
+        this.showStatus('Please select a video file.', 'error');
+        return;
+      }
+
+      const title = this.titleInput.value.trim();
+      const quality = this.qualitySlider ? parseFloat(this.qualitySlider.value) : 0.7;
+
+      console.log(`📤 Starting upload: "${title}" (${(file.size/1024/1024).toFixed(2)}MB)`);
+      console.log(`👤 Authenticated user: ${this.currentUser.uid}`);
+      
       this.uploadBtn.disabled = true;
+      this.showProgress(5);
 
-      // Get target size from slider or default to 25MB
-      const targetSize = this.qualitySlider ? 
-        Math.floor(50 - (this.qualitySlider.value * 25)) : 25;
+      // Only compress if file is very large
+      const maxSize = 50 * 1024 * 1024; // 50MB threshold
+      
+      if (file.size > maxSize) {
+        this.showStatus('🗜️ Compressing large video...', 'loading');
+        this.showProgress(10);
+        
+        try {
+          if (this.videoCompressor) {
+            file = await this.videoCompressor.compressVideo(file, 25); // 25MB target
+            console.log(`✅ Compressed to: ${(file.size/1024/1024).toFixed(2)}MB`);
+          }
+          this.showProgress(30);
+        } catch (compressionError) {
+          console.warn('⚠️ Compression failed, uploading original:', compressionError.message);
+          // Continue with original file
+        }
+      } else {
+        this.showProgress(30);
+      }
 
-      console.log(`🎯 Target compression size: ${targetSize}MB`);
+      // Generate thumbnail
+      this.showStatus('🖼️ Generating thumbnail...', 'loading');
+      const thumbnailData = await this.generateThumbnail(file);
+      this.showProgress(40);
 
-      // Use the new compression system
-      const compressedFile = await this.videoCompressor.compressVideo(
-        this.selectedFile, 
-        targetSize
-      );
-
-      console.log(`✅ Compression successful: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
-
-      // Now upload the compressed file
-      await this.uploadToFirebase(compressedFile);
+      // Upload to Firebase Storage
+      await this.uploadToFirebaseStorage(file, title, thumbnailData);
 
     } catch (error) {
-      console.error('❌ Upload process failed:', error);
+      console.error('❌ Upload failed:', error);
       this.showStatus(`Upload failed: ${error.message}`, 'error');
     } finally {
       this.uploadBtn.disabled = false;
