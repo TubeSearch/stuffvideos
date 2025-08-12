@@ -1116,9 +1116,7 @@ class VideoCompressor {
   }
 }
 
-// Export for use
-window.VideoUploader = VideoUploader;
-window.VideoCompressor = VideoCompressor;
+    class VanishGlobalPlatform {
 
       async initializeUserPresence() {
         if (!this.isAuthenticated || !this.currentUser) {
@@ -1906,7 +1904,8 @@ showVideo(index) {
         }
         
         this.videoPlayer.load();
-        
+      }
+    }
         this.gallery.style.display = 'none';
         this.uploadSection.style.display = 'none';
         this.videoPage.style.display = 'block';
