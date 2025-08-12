@@ -627,6 +627,13 @@ Z
     signInAnonymously, 
     onAuthStateChanged 
   } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 
     // Firebase configuration
     const firebaseConfig = {
@@ -643,6 +650,7 @@ Z
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
+const storage = getStorage(app);
 
     console.log('🚀 Firebase initialized successfully!');
     
@@ -706,6 +714,7 @@ Z
           this.updateConnectionStatus(false);
           this.updateSecurityStatus('error');
              }
+    this.storage = storage;
            } // <-- This closing brace was missing!
 
   initializeElements() {
@@ -1116,7 +1125,6 @@ class VideoCompressor {
   }
 }
 
-    class VanishGlobalPlatform {
 
       async initializeUserPresence() {
         if (!this.isAuthenticated || !this.currentUser) {
@@ -1812,7 +1820,61 @@ renderGallery() {
   }
 
   this.gallery.innerHTML = this.videos.map((video, index) => `
-    <div class="video-card" onclick="vanishApp.showVideo(${index})" data-index="${index}">
+    async showVideo(index) {
+      console.log(`📺 Showing video ${index}`);
+      const video = this.videos[index];
+      if (!video) return;
+    
+      this.videoTitle.textContent = this.escapeHtml(video.title || '');
+      // Clean up any old blob URLs
+      if (this._lastBlobUrl) {
+        URL.revokeObjectURL(this._lastBlobUrl);
+        this._lastBlobUrl = null;
+      }
+    
+      try {
+        // Prefer Firebase Storage download URL (most common case)
+        if (video.downloadURL) {
+          this.videoPlayer.src = video.downloadURL;
+        } else if (video.isChunked) {
+          this.showStatus('Loading video...', 'loading');
+          const videoData = await this.loadChunkedVideo(video.id);
+          const blob = this.base64ToBlob(videoData);
+          const url = URL.createObjectURL(blob);
+          this._lastBlobUrl = url;
+          this.videoPlayer.src = url;
+          this.hideStatus();
+        } else if (video.videoData) {
+          // old-style base64-stored videos
+          const blob = this.base64ToBlob(video.videoData);
+          const url = URL.createObjectURL(blob);
+          this._lastBlobUrl = url;
+          this.videoPlayer.src = url;
+          this.hideStatus();
+        } else {
+          throw new Error('No playable source found for this video.');
+        }
+    
+        // Show the player UI
+        if (this.gallery) this.gallery.style.display = 'none';
+        if (this.uploadSection) this.uploadSection.style.display = 'none';
+        if (this.videoPage) this.videoPage.style.display = 'block';
+    
+        // Load & attempt autoplay (graceful if blocked)
+        if (this.videoPlayer) {
+          this.videoPlayer.load();
+          setTimeout(() => {
+            this.videoPlayer.play().catch(e => {
+              console.log('Auto-play prevented by browser policy');
+            });
+          }, 100);
+        }
+    
+      } catch (error) {
+        console.error('❌ Failed to load video:', error);
+        if (this.showStatus) this.showStatus('Failed to load video. Please try again.', 'error');
+      }
+    }
       <div class="global-badge">Watch Now</div>
       <img src="${video.thumbnail}" alt="${video.title}" class="video-thumbnail" loading="lazy" />
       <div class="video-info">
@@ -1834,77 +1896,7 @@ renderGallery() {
 }
 
 // Updated video display method
-showVideo(index) {
-  const video = this.videos[index];
-  if (!video) return;
 
-  console.log('🎬 Showing video:', video.title);
-  
-  // Use the downloadURL instead of trying to reconstruct base64
-  const videoHTML = `
-    <div class="video-player-container">
-      <video controls autoplay class="video-player" id="currentVideo">
-        <source src="${video.downloadURL}" type="${video.fileType}">
-        Your browser does not support the video tag.
-      </video>
-      <div class="video-details">
-        <h2>${this.escapeHtml(video.title)}</h2>
-        <div class="video-info-full">
-          <span>📅 ${this.timeAgo(video.uploadTime)}</span>
-          <span>📏 ${video.size}</span>
-          <span>📍 ${video.location}</span>
-          <span>👤 ${video.uploader}</span>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Show the video (update your video display container)
-  const videoContainer = document.getElementById('videoContainer') || document.getElementById('videoPlayer');
-  if (videoContainer) {
-    videoContainer.innerHTML = videoHTML;
-    this.currentScreen = 'video';
-    this.updateScreens();
-  }
-}
-
-      async showVideo(index) {
-        console.log(`📺 Showing video ${index}`);
-        const video = this.videos[index];
-        if (!video) return;
-
-        this.videoTitle.textContent = video.title;
-        
-        // Clean up previous blob URLs
-        this.cleanupBlobUrls();
-        
-        try {
-          let videoDataUrl;
-          
-          // Check if video is chunked
-          if (video.isChunked) {
-            console.log('📦 Loading chunked video...');
-            this.showStatus('Loading video...', 'loading');
-            
-            videoDataUrl = await this.loadChunkedVideo(video.id);
-          } else {
-            // Regular video
-            videoDataUrl = video.videoData;
-          }
-          
-          // Convert base64 to blob URL for proper video playback
-          const blobUrl = this.base64ToBlob(videoDataUrl);
-          this.videoPlayer.src = blobUrl;
-          
-          this.hideStatus();
-        } catch (error) {
-          console.error('❌ Failed to load video:', error);
-          this.showStatus('Failed to load video. Please try again.', 'error');
-          return;
-        }
-        
-        this.videoPlayer.load();
-      }
     }
         this.gallery.style.display = 'none';
         this.uploadSection.style.display = 'none';
