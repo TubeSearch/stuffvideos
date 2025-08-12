@@ -693,7 +693,29 @@ const storage = getStorage(app);
         this.activeUsers = 0; // Current active user count
         
         try {
-this.initializeElements = () => {
+          this.initializeElements();
+          console.log('✅ Elements initialized');
+          
+          this.initializeEventListeners();
+          console.log('✅ Event listeners initialized');
+          
+          this.initializeAuthentication();
+          console.log('✅ Authentication started');
+          
+          this.startStatsUpdater();
+          console.log('✅ Stats updater started');
+          
+          this.startMidnightCleaner();
+          console.log('✅ Midnight cleaner started');
+          
+          console.log('🎉 Initialization complete!');
+        } catch (error) {
+          console.error('❌ Initialization failed:', error);
+          this.updateConnectionStatus(false);
+          this.updateSecurityStatus('error');
+             }
+
+  initializeElements() {
     console.log('🔍 Finding DOM elements...');
     
     this.uploadBtn = document.getElementById('uploadBtn');
@@ -726,29 +748,7 @@ this.initializeElements = () => {
     }
     
     console.log('✅ DOM elements initialized');
-};
-          this.initializeElements();
-          console.log('✅ Elements initialized');
-          
-          this.initializeEventListeners();
-          console.log('✅ Event listeners initialized');
-          
-          this.initializeAuthentication();
-          console.log('✅ Authentication started');
-          
-          this.startStatsUpdater();
-          console.log('✅ Stats updater started');
-          
-          this.startMidnightCleaner();
-          console.log('✅ Midnight cleaner started');
-          
-          console.log('🎉 Initialization complete!');
-        } catch (error) {
-          console.error('❌ Initialization failed:', error);
-          this.updateConnectionStatus(false);
-          this.updateSecurityStatus('error');
-             }
-
+  }
 
   initializeEventListeners() {
     console.log('🎯 Setting up event listeners...');
@@ -1834,46 +1834,6 @@ renderGallery() {
       try {
         // Prefer Firebase Storage download URL (most common case)
         if (video.downloadURL) {
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
-          console.log('DEBUG: Setting videoPlayer.src to ->', video.downloadURL);
           this.videoPlayer.src = video.downloadURL;
         } else if (video.isChunked) {
           this.showStatus('Loading video...', 'loading');
