@@ -738,254 +738,412 @@ Z
         this.countdownValue = document.getElementById('countdownValue');
       }
 
-      initializeEventListeners() {
-        console.log('🎯 Setting up event listeners...');
-        
-        if (this.uploadBtn) {
-          this.uploadBtn.addEventListener('click', (event) => {
-            console.log('🔥 UPLOAD BUTTON CLICKED!');
-            event.preventDefault();
-            this.handleUpload();
-          });
+class VideoUploader {
+  constructor() {
+    // Initialize the improved video compressor
+    this.videoCompressor = new VideoCompressor();
+    
+    // Your existing initialization...
+    this.initializeElements();
+    this.initializeEventListeners();
+    this.initializeAuthentication();
+  }
+
+  initializeEventListeners() {
+    console.log('🎯 Setting up event listeners...');
+    
+    if (this.uploadBtn) {
+      this.uploadBtn.addEventListener('click', (event) => {
+        console.log('🔥 UPLOAD BUTTON CLICKED!');
+        event.preventDefault();
+        this.handleUpload();
+      });
+    }
+    
+    if (this.backBtn) {
+      this.backBtn.addEventListener('click', () => {
+        this.showGallery();
+      });
+    }
+    
+    if (this.refreshBtn) {
+      this.refreshBtn.addEventListener('click', () => {
+        this.loadVideosFromFirebase();
+      });
+    }
+    
+    if (this.fileInput) {
+      this.fileInput.addEventListener('change', () => {
+        this.handleFileSelection();
+      });
+    }
+    
+    if (this.titleInput) {
+      this.titleInput.addEventListener('input', () => {
+        this.validateForm();
+      });
+    }
+
+    if (this.qualitySlider) {
+      this.qualitySlider.addEventListener('input', (e) => {
+        this.qualityValue.textContent = e.target.value;
+      });
+    }
+  }
+
+  async initializeAuthentication() {
+    console.log('🔐 Initializing Firebase Authentication...');
+    
+    try {
+      // Set up auth state listener
+      onAuthStateChanged(this.auth, (user) => {
+        if (user) {
+          console.log('✅ User authenticated:', user.uid);
+          this.currentUser = user;
+          this.userId = user.uid;
+          this.isAuthenticated = true;
+          this.updateSecurityStatus('authenticated');
+          this.initializeFirebase();
+          this.initializeUserPresence();
+        } else {
+          console.log('❌ User not authenticated');
+          this.isAuthenticated = false;
+          this.updateSecurityStatus('unauthenticated');
         }
-        
-        if (this.backBtn) {
-          this.backBtn.addEventListener('click', () => {
-            this.showGallery();
-          });
-        }
-        
-        if (this.refreshBtn) {
-          this.refreshBtn.addEventListener('click', () => {
-            this.loadVideosFromFirebase();
-          });
-        }
-        
-        if (this.fileInput) {
-          this.fileInput.addEventListener('change', () => {
-            this.handleFileSelection();
-          });
-        }
-        
-        if (this.titleInput) {
-          this.titleInput.addEventListener('input', () => {
-            this.validateForm();
-          });
-        }
-
-        if (this.qualitySlider) {
-          this.qualitySlider.addEventListener('input', (e) => {
-            this.qualityValue.textContent = e.target.value;
-          });
-        }
-      }
-
-      async initializeAuthentication() {
-        console.log('🔐 Initializing Firebase Authentication...');
-        
-        try {
-          // Set up auth state listener
-          onAuthStateChanged(this.auth, (user) => {
-            if (user) {
-              console.log('✅ User authenticated:', user.uid);
-              this.currentUser = user;
-              this.userId = user.uid;
-              this.isAuthenticated = true;
-              this.updateSecurityStatus('authenticated');
-              this.initializeFirebase();
-              this.initializeUserPresence();
-            } else {
-              console.log('❌ User not authenticated');
-              this.isAuthenticated = false;
-              this.updateSecurityStatus('unauthenticated');
-            }
-            this.validateForm();
-          });
-
-          // Sign in anonymously
-          console.log('🔓 Signing in anonymously...');
-          this.updateSecurityStatus('authenticating');
-          
-          const userCredential = await signInAnonymously(this.auth);
-          console.log('✅ Anonymous sign-in successful:', userCredential.user.uid);
-          
-        } catch (error) {
-          console.error('❌ Authentication failed:', error);
-          this.updateSecurityStatus('error');
-          this.showStatus(`Authentication failed: ${error.message}. Please refresh the page.`, 'error');
-        }
-      }
-
-      updateSecurityStatus(status) {
-        const securityStatus = this.securityStatus;
-        
-        switch (status) {
-          case 'authenticating':
-            securityStatus.textContent = '🔐 Authenticating...';
-            securityStatus.style.color = '#d3c0f9';
-            break;
-          case 'authenticated':
-            securityStatus.textContent = '🟢 Secured';
-            securityStatus.style.color = '#68d391';
-            break;
-          case 'unauthenticated':
-            securityStatus.textContent = '🔴 Authentication Required';
-            securityStatus.style.color = '#fc8181';
-            break;
-          case 'error':
-            securityStatus.textContent = '⚠️ Auth Error';
-            securityStatus.style.color = '#fc8181';
-            break;
-        }
-      }
-
-async compressVideo(file, quality = 0.7) {
-  console.log(`🗜️ Compressing video with quality: ${quality}`);
-
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const video = document.createElement('video');
-
-    video.src = URL.createObjectURL(file);
-    video.muted = true;
-    video.preload = 'metadata';
-    video.crossOrigin = 'anonymous';
-
-    video.addEventListener('loadedmetadata', () => {
-      const aspectRatio = video.videoWidth / video.videoHeight;
-
-      let targetWidth = video.videoWidth;
-      let targetHeight = video.videoHeight;
-
-      if (quality < 0.5) {
-        targetWidth = Math.floor(video.videoWidth * 0.6);
-        targetHeight = Math.floor(video.videoHeight * 0.6);
-      } else if (quality < 0.7) {
-        targetWidth = Math.floor(video.videoWidth * 0.8);
-        targetHeight = Math.floor(video.videoHeight * 0.8);
-      }
-
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-
-      // Countdown element refs
-      const countdownEl = document.getElementById('countdown');
-      const countdownValue = document.getElementById('countdownValue');
-      countdownEl.style.display = 'block';
-
-      let remaining = Math.ceil(video.duration);
-
-      // Format seconds to MM:SS
-      const formatTime = (sec) => {
-        const m = Math.floor(sec / 60).toString().padStart(2, '0');
-        const s = (sec % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-      };
-
-      countdownValue.textContent = formatTime(remaining);
-
-      // Setup countdown interval
-      const timer = setInterval(() => {
-        remaining--;
-        countdownValue.textContent = formatTime(remaining);
-
-        if (remaining <= 0) {
-          clearInterval(timer);
-          countdownEl.textContent = "✅ Compression finished!";
-        }
-      }, 1000);
-
-      // Create a stream for the canvas (video)
-      const videoStream = canvas.captureStream(24); // 24 fps
-
-      // Extract audio track from the original file
-      const audio = document.createElement('audio');
-      audio.src = video.src;
-      audio.crossOrigin = 'anonymous';
-      audio.preload = 'metadata';
-
-      audio.addEventListener('loadedmetadata', () => {
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaElementSource(audio);
-        const dest = audioContext.createMediaStreamDestination();
-        source.connect(dest);
-
-        // Combine video + audio streams
-        const combinedStream = new MediaStream([
-          ...videoStream.getVideoTracks(),
-          ...dest.stream.getAudioTracks(),
-        ]);
-
-        // Setup recorder
-        const mediaRecorder = new MediaRecorder(combinedStream, {
-          mimeType: 'video/webm;codecs=vp8,opus',
-          videoBitsPerSecond: Math.floor(1000000 * quality),
-        });
-
-        const chunks = [];
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          clearInterval(timer);
-          countdownEl.textContent = "✅ Compression finished!";
-
-          const compressedBlob = new Blob(chunks, { type: 'video/webm' });
-          console.log(`✅ Compression complete. Original: ${file.size} → Compressed: ${compressedBlob.size}`);
-
-          const compressedFile = new File([compressedBlob],
-            file.name.replace(/\.[^/.]+$/, '') + '_compressed.webm',
-            { type: 'video/webm' }
-          );
-
-          URL.revokeObjectURL(video.src);
-          resolve(compressedFile);
-        };
-
-        mediaRecorder.onerror = (error) => {
-          clearInterval(timer);
-          console.error('❌ Compression failed:', error);
-          countdownEl.style.display = 'none';
-          URL.revokeObjectURL(video.src);
-          reject(error);
-        };
-
-        mediaRecorder.start();
-
-        // Draw video frames
-        const drawFrame = () => {
-          if (video.currentTime < video.duration) {
-            ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-            requestAnimationFrame(drawFrame);
-          } else {
-            mediaRecorder.stop();
-          }
-        };
-
-        // Start playing both muted and silent so no audio output
-        video.play().then(() => {
-          audio.play();
-          drawFrame();
-        });
+        this.validateForm();
       });
 
-      audio.addEventListener('error', (e) => {
-        clearInterval(timer);
-        countdownEl.style.display = 'none';
-        console.error('❌ Audio loading failed:', e);
-        reject(e);
-      });
-    });
+      // Sign in anonymously
+      console.log('🔓 Signing in anonymously...');
+      this.updateSecurityStatus('authenticating');
+      
+      const userCredential = await signInAnonymously(this.auth);
+      console.log('✅ Anonymous sign-in successful:', userCredential.user.uid);
+      
+    } catch (error) {
+      console.error('❌ Authentication failed:', error);
+      this.updateSecurityStatus('error');
+      this.showStatus(`Authentication failed: ${error.message}. Please refresh the page.`, 'error');
+    }
+  }
 
-    video.addEventListener('error', (e) => {
-      console.error('❌ Video loading failed:', e);
-      reject(e);
-    });
-  });
+  updateSecurityStatus(status) {
+    const securityStatus = this.securityStatus;
+    
+    switch (status) {
+      case 'authenticating':
+        securityStatus.textContent = '🔐 Authenticating...';
+        securityStatus.style.color = '#d3c0f9';
+        break;
+      case 'authenticated':
+        securityStatus.textContent = '🟢 Secured';
+        securityStatus.style.color = '#68d391';
+        break;
+      case 'unauthenticated':
+        securityStatus.textContent = '🔴 Authentication Required';
+        securityStatus.style.color = '#fc8181';
+        break;
+      case 'error':
+        securityStatus.textContent = '⚠️ Auth Error';
+        securityStatus.style.color = '#fc8181';
+        break;
+    }
+  }
+
+  // Updated method to use the new compressor
+  async handleUpload() {
+    if (!this.selectedFile || !this.isAuthenticated) {
+      console.log('❌ Cannot upload: file or authentication missing');
+      return;
+    }
+
+    try {
+      this.showStatus('🗜️ Compressing video...', 'info');
+      this.uploadBtn.disabled = true;
+
+      // Get target size from slider or default to 25MB
+      const targetSize = this.qualitySlider ? 
+        Math.floor(50 - (this.qualitySlider.value * 25)) : 25;
+
+      console.log(`🎯 Target compression size: ${targetSize}MB`);
+
+      // Use the new compression system
+      const compressedFile = await this.videoCompressor.compressVideo(
+        this.selectedFile, 
+        targetSize
+      );
+
+      console.log(`✅ Compression successful: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Now upload the compressed file
+      await this.uploadToFirebase(compressedFile);
+
+    } catch (error) {
+      console.error('❌ Upload process failed:', error);
+      this.showStatus(`Upload failed: ${error.message}`, 'error');
+    } finally {
+      this.uploadBtn.disabled = false;
+    }
+  }
+
+  // You'll need to implement this method for Firebase upload
+  async uploadToFirebase(file) {
+    // Your existing Firebase upload logic here
+    console.log('📤 Uploading to Firebase...', file.name);
+    // Implementation depends on your Firebase setup
+  }
+
+  // Helper method to show status
+  showStatus(message, type) {
+    console.log(`📢 Status: ${message}`);
+    // Update your UI status element here
+  }
 }
 
+class VideoCompressor {
+  constructor() {
+    this.maxFileSize = 25 * 1024 * 1024; // 25MB default max size
+    this.compressionLevels = [
+      { quality: 0.9, bitrate: 2500000, scale: 1.0, fps: 30 },
+      { quality: 0.8, bitrate: 2000000, scale: 0.9, fps: 30 },
+      { quality: 0.7, bitrate: 1500000, scale: 0.8, fps: 25 },
+      { quality: 0.6, bitrate: 1200000, scale: 0.75, fps: 25 },
+      { quality: 0.5, bitrate: 800000, scale: 0.7, fps: 24 },
+      { quality: 0.4, bitrate: 600000, scale: 0.65, fps: 20 },
+      { quality: 0.3, bitrate: 400000, scale: 0.6, fps: 20 },
+      { quality: 0.2, bitrate: 300000, scale: 0.5, fps: 15 },
+      { quality: 0.1, bitrate: 200000, scale: 0.4, fps: 15 }
+    ];
+  }
+
+  async compressVideo(file, targetSizeMB = 25) {
+    console.log(`🗜️ Starting compression for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+    
+    this.maxFileSize = targetSizeMB * 1024 * 1024;
+    
+    // Update UI
+    this.updateProgress('Analyzing video...', 0);
+    
+    for (let i = 0; i < this.compressionLevels.length; i++) {
+      const level = this.compressionLevels[i];
+      console.log(`📊 Trying compression level ${i + 1}/${this.compressionLevels.length} (Quality: ${level.quality})`);
+      
+      try {
+        const compressed = await this.compressWithSettings(file, level, i + 1);
+        
+        if (compressed.size <= this.maxFileSize) {
+          console.log(`✅ Success! Compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+          this.updateProgress('✅ Compression successful!', 100);
+          return compressed;
+        } else {
+          console.log(`⚠️ Still too large: ${(compressed.size / 1024 / 1024).toFixed(2)}MB, trying next level...`);
+        }
+      } catch (error) {
+        console.error(`❌ Compression level ${i + 1} failed:`, error);
+        if (i === this.compressionLevels.length - 1) {
+          throw error;
+        }
+        // Continue to next level on error
+      }
+    }
+    
+    throw new Error(`Unable to compress video below ${targetSizeMB}MB after trying all compression levels`);
+  }
+
+  async compressWithSettings(file, settings, attempt) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.src = URL.createObjectURL(file);
+      video.muted = true;
+      video.preload = 'metadata';
+      video.crossOrigin = 'anonymous';
+
+      const timeout = setTimeout(() => {
+        URL.revokeObjectURL(video.src);
+        reject(new Error('Video compression timeout - trying next level'));
+      }, 90000); // 90 second timeout per level
+
+      video.addEventListener('loadedmetadata', async () => {
+        try {
+          clearTimeout(timeout);
+          
+          // Calculate target dimensions
+          const targetWidth = Math.floor(video.videoWidth * settings.scale);
+          const targetHeight = Math.floor(video.videoHeight * settings.scale);
+          
+          // Ensure dimensions are divisible by 2 (required for most codecs)
+          const evenWidth = targetWidth % 2 === 0 ? targetWidth : targetWidth - 1;
+          const evenHeight = targetHeight % 2 === 0 ? targetHeight : targetHeight - 1;
+          
+          // Minimum size constraints
+          const minWidth = Math.max(evenWidth, 240);
+          const minHeight = Math.max(evenHeight, 160);
+          
+          console.log(`🎬 Processing: ${video.videoWidth}x${video.videoHeight} → ${minWidth}x${minHeight}`);
+          console.log(`⚙️ Settings: Bitrate ${settings.bitrate}, FPS ${settings.fps}`);
+          
+          // Create optimized canvas stream
+          const stream = await this.createOptimizedStream(video, minWidth, minHeight, settings.fps);
+          
+          const mimeType = this.getBestMimeType();
+          const mediaRecorder = new MediaRecorder(stream, {
+            mimeType: mimeType,
+            videoBitsPerSecond: settings.bitrate,
+            audioBitsPerSecond: 64000 // Lower audio bitrate for better compression
+          });
+
+          const chunks = [];
+          let startTime = Date.now();
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+              const elapsed = (Date.now() - startTime) / 1000;
+              const progress = Math.min(90, (elapsed / video.duration) * 80 + (attempt - 1) * 10);
+              this.updateProgress(`Compressing (Level ${attempt})...`, progress);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            const compressedBlob = new Blob(chunks, { type: mimeType });
+            const extension = this.getExtensionFromMimeType(mimeType);
+            
+            const compressedFile = new File(
+              [compressedBlob],
+              file.name.replace(/\.[^/.]+$/, '') + '_compressed' + extension,
+              { type: mimeType }
+            );
+
+            URL.revokeObjectURL(video.src);
+            resolve(compressedFile);
+          };
+
+          mediaRecorder.onerror = (error) => {
+            console.error('❌ MediaRecorder error:', error);
+            URL.revokeObjectURL(video.src);
+            reject(new Error(`MediaRecorder failed: ${error.message}`));
+          };
+
+          // Start recording with smaller data intervals for better memory management
+          mediaRecorder.start(2000);
+          
+          // Play video
+          video.currentTime = 0;
+          await video.play();
+          
+          // Stop recording when video ends
+          video.addEventListener('ended', () => {
+            setTimeout(() => mediaRecorder.stop(), 100);
+          });
+
+        } catch (error) {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(video.src);
+          reject(error);
+        }
+      });
+
+      video.addEventListener('error', (e) => {
+        clearTimeout(timeout);
+        console.error('❌ Video loading failed:', e);
+        URL.revokeObjectURL(video.src);
+        reject(new Error('Video loading failed'));
+      });
+    });
+  }
+
+  async createOptimizedStream(video, width, height, targetFPS) {
+    // Use OffscreenCanvas for better performance
+    let canvas, ctx;
+    
+    if (typeof OffscreenCanvas !== 'undefined') {
+      canvas = new OffscreenCanvas(width, height);
+      ctx = canvas.getContext('2d', { 
+        alpha: false,
+        desynchronized: true 
+      });
+    } else {
+      canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      ctx = canvas.getContext('2d', { alpha: false });
+    }
+
+    // Optimize canvas rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'medium'; // Balance between quality and performance
+
+    const stream = canvas.captureStream(targetFPS);
+    
+    // More efficient frame drawing with frame skipping
+    let lastDrawTime = 0;
+    const frameInterval = 1000 / targetFPS;
+    
+    const drawFrame = (currentTime) => {
+      if (currentTime - lastDrawTime >= frameInterval) {
+        if (video.currentTime < video.duration && !video.paused && !video.ended) {
+          ctx.drawImage(video, 0, 0, width, height);
+          lastDrawTime = currentTime;
+        }
+      }
+      
+      if (video.currentTime < video.duration && !video.paused && !video.ended) {
+        requestAnimationFrame(drawFrame);
+      }
+    };
+
+    video.addEventListener('play', () => drawFrame(0));
+    
+    return stream;
+  }
+
+  getBestMimeType() {
+    // Updated codec priority for better compression
+    const codecs = [
+      'video/webm;codecs=vp9,opus',     // Best compression ratio
+      'video/webm;codecs=vp8,opus',     // Good compression, wide support
+      'video/webm;codecs=h264,opus',    // H.264 in WebM
+      'video/mp4;codecs=h264,aac',      // Fallback for maximum compatibility
+      'video/webm'                      // Basic fallback
+    ];
+
+    for (const codec of codecs) {
+      if (MediaRecorder.isTypeSupported(codec)) {
+        console.log(`📹 Using codec: ${codec}`);
+        return codec;
+      }
+    }
+    
+    console.warn('⚠️ No preferred codec supported, using default');
+    return 'video/webm';
+  }
+
+  getExtensionFromMimeType(mimeType) {
+    if (mimeType.includes('mp4')) return '.mp4';
+    if (mimeType.includes('webm')) return '.webm';
+    return '.webm';
+  }
+
+  updateProgress(message, percent) {
+    const countdownEl = document.getElementById('countdown');
+    const countdownValue = document.getElementById('countdownValue');
+    
+    if (countdownEl) {
+      countdownEl.style.display = 'block';
+      if (countdownValue) {
+        countdownValue.textContent = `${message} ${Math.round(percent)}%`;
+      } else {
+        countdownEl.textContent = `${message} ${Math.round(percent)}%`;
+      }
+    }
+    
+    console.log(`📊 ${message} ${Math.round(percent)}%`);
+  }
+}
+
+// Export for use
+window.VideoUploader = VideoUploader;
+window.VideoCompressor = VideoCompressor;
 
       async initializeUserPresence() {
         if (!this.isAuthenticated || !this.currentUser) {
