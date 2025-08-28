@@ -397,10 +397,12 @@
       text-align: center;
       margin-bottom: 2rem;
     }
-Z
-    .video-player {
+
+     .video-player {
       max-width: 100%;
       max-height: 70vh;
+      width: 100%;       /* 🔥 ensures it fits horizontally */
+      height: auto;      /* 🔥 keeps aspect ratio */
       border-radius: 16px;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
       background: #000;
