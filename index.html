@@ -401,8 +401,8 @@
      .video-player {
       max-width: 100%;
       max-height: 70vh;
-      width: 100%;       /* 🔥 ensures it fits horizontally */
-      height: auto;      /* 🔥 keeps aspect ratio */
+      width: 50%;
+      height: auto;
       border-radius: 16px;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
       background: #000;
@@ -602,7 +602,7 @@
 
   <!-- Firebase SDK -->
   <script type="module">
-    // Import Firebase modules
+
    import { 
     initializeApp 
   } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -621,7 +621,7 @@
     setDoc, 
     serverTimestamp, 
     Timestamp,
-    writeBatch  // <-- include this here
+    writeBatch
   } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
   import { 
@@ -630,7 +630,7 @@
     onAuthStateChanged 
   } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-    // Firebase configuration
+    // firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyC9ck4UFiLC8JRyUHonTszDd38CWnbIEZs",
       authDomain: "vanish-22814.firebaseapp.com",
@@ -641,7 +641,7 @@
       measurementId: "G-MKTXH9N4XT"
     };
 
-    // Initialize Firebase
+    // initfirebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
@@ -680,11 +680,11 @@
         this.isConnected = false;
         this.isAuthenticated = false;
         this.currentUser = null;
-        this.maxFileSize = 2.9 * 1024 * 1024; // 2.9MB to stay under 3MB limit
-        this.currentBlobUrls = new Set(); // Track blob URLs for cleanup
-        this.userId = null; // Will be set after authentication
-        this.userDocRef = null; // Reference to user's presence document
-        this.activeUsers = 0; // Current active user count
+        this.maxFileSize = 2.9 * 1024 * 1024; 
+        this.currentBlobUrls = new Set(); 
+        this.userId = null; 
+        this.userDocRef = null; 
+        this.activeUsers = 0;
         
         try {
           this.initializeElements();
@@ -786,7 +786,7 @@
         console.log('🔐 Initializing Firebase Authentication...');
         
         try {
-          // Set up auth state listener
+
           onAuthStateChanged(this.auth, (user) => {
             if (user) {
               console.log('✅ User authenticated:', user.uid);
@@ -804,8 +804,8 @@
             this.validateForm();
           });
 
-          // Sign in anonymously
-          console.log('🔓 Signing in anonymously...');
+
+          console.log('🔓 Signing in...');
           this.updateSecurityStatus('authenticating');
           
           const userCredential = await signInAnonymously(this.auth);
@@ -871,14 +871,13 @@ async compressVideo(file, quality = 0.7) {
       canvas.width = targetWidth;
       canvas.height = targetHeight;
 
-      // Countdown element refs
+
       const countdownEl = document.getElementById('countdown');
       const countdownValue = document.getElementById('countdownValue');
       countdownEl.style.display = 'block';
 
       let remaining = Math.ceil(video.duration);
 
-      // Format seconds to MM:SS
       const formatTime = (sec) => {
         const m = Math.floor(sec / 60).toString().padStart(2, '0');
         const s = (sec % 60).toString().padStart(2, '0');
@@ -887,7 +886,7 @@ async compressVideo(file, quality = 0.7) {
 
       countdownValue.textContent = formatTime(remaining);
 
-      // Setup countdown interval
+      // setup countdown interval
       const timer = setInterval(() => {
         remaining--;
         countdownValue.textContent = formatTime(remaining);
@@ -898,10 +897,10 @@ async compressVideo(file, quality = 0.7) {
         }
       }, 1000);
 
-      // Create a stream for the canvas (video)
+
       const videoStream = canvas.captureStream(24); // 24 fps
 
-      // Extract audio track from the original file
+
       const audio = document.createElement('audio');
       audio.src = video.src;
       audio.crossOrigin = 'anonymous';
@@ -913,13 +912,12 @@ async compressVideo(file, quality = 0.7) {
         const dest = audioContext.createMediaStreamDestination();
         source.connect(dest);
 
-        // Combine video + audio streams
+
         const combinedStream = new MediaStream([
           ...videoStream.getVideoTracks(),
           ...dest.stream.getAudioTracks(),
         ]);
 
-        // Setup recorder
         const mediaRecorder = new MediaRecorder(combinedStream, {
           mimeType: 'video/webm;codecs=vp8,opus',
           videoBitsPerSecond: Math.floor(1000000 * quality),
@@ -956,7 +954,7 @@ async compressVideo(file, quality = 0.7) {
 
         mediaRecorder.start();
 
-        // Draw video frames
+
         const drawFrame = () => {
           if (video.currentTime < video.duration) {
             ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
@@ -966,7 +964,7 @@ async compressVideo(file, quality = 0.7) {
           }
         };
 
-        // Start playing both muted and silent so no audio output
+
         video.play().then(() => {
           audio.play();
           drawFrame();
@@ -998,26 +996,25 @@ async compressVideo(file, quality = 0.7) {
         console.log('👥 Initializing user presence tracking...');
         
         try {
-          // Create user presence document using authenticated user ID
+
           this.userDocRef = doc(this.db, 'active_users', this.currentUser.uid);
           
           await setDoc(this.userDocRef, {
             userId: this.currentUser.uid,
             lastSeen: serverTimestamp(),
             joinedAt: serverTimestamp(),
-            userAgent: navigator.userAgent.substring(0, 100), // First 100 chars
+            userAgent: navigator.userAgent.substring(0, 100),
             page: 'main'
           });
           
           console.log(`✅ User presence created: ${this.currentUser.uid}`);
-          
-          // Set up real-time active users listener
+
           this.setupActiveUsersListener();
           
-          // Update presence every 30 seconds
+
           this.startPresenceUpdater();
           
-          // Handle page visibility changes
+
           this.setupVisibilityHandlers();
           
         } catch (error) {
@@ -1034,7 +1031,7 @@ async compressVideo(file, quality = 0.7) {
         
         onSnapshot(activeUsersRef, (snapshot) => {
           const now = new Date();
-          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); 
           
           let activeCount = 0;
           const expiredUsers = [];
@@ -1046,7 +1043,7 @@ async compressVideo(file, quality = 0.7) {
             if (lastSeen && lastSeen > fiveMinutesAgo) {
               activeCount++;
             } else {
-              // Mark for cleanup
+
               expiredUsers.push(doc.id);
             }
           });
@@ -1056,12 +1053,12 @@ async compressVideo(file, quality = 0.7) {
           
           console.log(`👥 Active users: ${activeCount}`);
           
-          // Clean up expired users (don't await to avoid blocking)
+
           this.cleanupExpiredUsers(expiredUsers);
           
         }, (error) => {
           console.error('❌ Active users listener error:', error);
-          // Fallback to random number
+
           this.onlineUsers.textContent = Math.floor(Math.random() * 50) + 10;
         });
       }
@@ -1087,7 +1084,7 @@ async compressVideo(file, quality = 0.7) {
       startPresenceUpdater() {
         if (!this.isAuthenticated) return;
         
-        // Update presence every 30 seconds
+
         setInterval(async () => {
           if (this.userDocRef && !document.hidden && this.isAuthenticated) {
             try {
@@ -1102,17 +1099,17 @@ async compressVideo(file, quality = 0.7) {
               console.error('❌ Failed to update presence:', error);
             }
           }
-        }, 30000); // 30 seconds
+        }, 30000);
       }
 
       setupVisibilityHandlers() {
-        // Handle page visibility changes
+
         document.addEventListener('visibilitychange', async () => {
           if (document.hidden) {
-            console.log('👻 Page hidden, user went inactive');
+            console.log('Page hidden, user went inactive');
           } else {
             console.log('👀 Page visible, user became active');
-            // Update presence when user comes back
+
             if (this.userDocRef && this.isAuthenticated) {
               try {
                 await setDoc(this.userDocRef, {
@@ -1126,7 +1123,7 @@ async compressVideo(file, quality = 0.7) {
           }
         });
 
-        // Handle page unload
+
         window.addEventListener('beforeunload', () => {
           if (this.userDocRef && navigator.sendBeacon && this.isAuthenticated) {
             const cleanupData = JSON.stringify({
@@ -1138,12 +1135,11 @@ async compressVideo(file, quality = 0.7) {
           }
         });
 
-        // Fallback cleanup using pagehide
         window.addEventListener('pagehide', async () => {
           if (this.userDocRef && this.isAuthenticated) {
             try {
               await deleteDoc(this.userDocRef);
-              console.log('👋 User presence cleaned up on page unload');
+              console.log('User presence cleaned up on page unload');
             } catch (error) {
               console.log('⚠️ Could not cleanup presence on unload');
             }
@@ -1168,7 +1164,7 @@ async compressVideo(file, quality = 0.7) {
           console.log('🔥 Connecting to Firebase...');
           console.log('🌐 Testing network connectivity...');
           
-          // Test basic network connectivity first
+
           try {
             const response = await fetch('https://www.google.com/favicon.ico', { 
               mode: 'no-cors',
@@ -1182,7 +1178,7 @@ async compressVideo(file, quality = 0.7) {
             return;
           }
 
-          // Test Firebase connection with timeout
+
           console.log('🔥 Testing Firebase connection...');
           const testPromise = this.testFirebaseConnection();
           const timeoutPromise = new Promise((_, reject) => 
@@ -1190,11 +1186,9 @@ async compressVideo(file, quality = 0.7) {
           );
 
           await Promise.race([testPromise, timeoutPromise]);
-          
-          // Test connection by getting videos
+
           await this.loadVideosFromFirebase();
-          
-          // Set up real-time listener
+
           this.setupRealtimeListener();
           
           this.updateConnectionStatus(true);
@@ -1222,13 +1216,12 @@ async compressVideo(file, quality = 0.7) {
         console.log('🧪 Testing Firebase read permissions...');
         
         try {
-          // Try to read from videos collection (should work even if empty)
+
           const videosRef = collection(this.db, 'videos');
           const testQuery = query(videosRef);
           await getDocs(testQuery);
           console.log('✅ Firebase read test successful');
-          
-          // Try to write to active_users (test write permissions)
+
           console.log('🧪 Testing Firebase write permissions...');
           const testUserId = 'test_' + Date.now();
           const testUserRef = doc(this.db, 'active_users', this.currentUser.uid + '_test');
@@ -1238,7 +1231,6 @@ async compressVideo(file, quality = 0.7) {
             owner: this.currentUser.uid
           });
           
-          // Clean up test document
           await deleteDoc(testUserRef);
           console.log('✅ Firebase write test successful');
           
@@ -1442,7 +1434,6 @@ async compressVideo(file, quality = 0.7) {
           this.uploadBtn.disabled = true;
           this.showProgress(5);
 
-          // Check if compression is needed
           if (file.size > this.maxFileSize) {
             this.showStatus('🗜️ File too large, compressing video...', 'loading');
             this.showProgress(10);
@@ -1474,16 +1465,15 @@ async compressVideo(file, quality = 0.7) {
           this.showStatus('Converting video to base64...', 'loading');
           this.showProgress(50);
 
-          // Convert video to base64
+
           const videoBase64 = await this.fileToBase64(file);
           this.showProgress(60);
 
-          // Generate thumbnail
+          // generate thumbnail
           this.showStatus('Generating thumbnail...', 'loading');
           const thumbnailData = await this.generateThumbnail(file);
           this.showProgress(70);
 
-          // Prepare video data with owner field for security rules
           const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
           const maxChunkSize = 800000; // 800KB chunks
           
@@ -1491,18 +1481,18 @@ async compressVideo(file, quality = 0.7) {
           this.showProgress(75);
 
           if (videoBase64.length > maxChunkSize) {
-            // Large video - chunk it
+
             console.log('📦 Video is large, chunking into multiple documents...');
             await this.uploadChunkedVideo(videoId, title, videoBase64, thumbnailData, file);
           } else {
-            // Small video - upload normally
+
             console.log('📄 Video is small, uploading as single document...');
             await this.uploadSingleVideo(videoId, title, videoBase64, thumbnailData, file);
           }
 
           this.showProgress(100);
           
-          // Clear form
+
           this.titleInput.value = '';
           this.fileInput.value = '';
           this.compressionOptions.style.display = 'none';
@@ -1559,10 +1549,10 @@ async compressVideo(file, quality = 0.7) {
       async uploadChunkedVideo(videoId, title, videoBase64, thumbnailData, file) {
         console.log('📦 Uploading chunked video with security...');
         
-        const maxChunkSize = 800000; // 800KB chunks
+        const maxChunkSize = 800000; 
         const chunks = [];
         
-        // Split video data into chunks
+
         for (let i = 0; i < videoBase64.length; i += maxChunkSize) {
           chunks.push(videoBase64.slice(i, i + maxChunkSize));
         }
@@ -1570,7 +1560,7 @@ async compressVideo(file, quality = 0.7) {
         console.log(`📦 Split video into ${chunks.length} chunks`);
         this.showStatus(`Uploading video securely in ${chunks.length} parts...`, 'loading');
 
-        // Upload main video document (metadata only)
+
         const mainVideo = {
           id: videoId,
           title: title,
@@ -1583,20 +1573,20 @@ async compressVideo(file, quality = 0.7) {
           location: this.getRandomLocation(),
           isChunked: true,
           totalChunks: chunks.length,
-          videoData: '', // Empty for chunked videos
-          owner: this.currentUser.uid // Required for security rules
+          videoData: '', 
+          owner: this.currentUser.uid 
         };
 
         await addDoc(collection(this.db, 'videos'), mainVideo);
         
-        // Upload chunks with owner field
+
         const chunkPromises = chunks.map((chunk, index) => {
           const chunkData = {
             videoId: videoId,
             chunkIndex: index,
             chunkData: chunk,
             uploadTime: new Date().toISOString(),
-            owner: this.currentUser.uid // Required for security rules
+            owner: this.currentUser.uid 
           };
           return addDoc(collection(this.db, 'video_chunks'), chunkData);
         });
@@ -1721,13 +1711,12 @@ async compressVideo(file, quality = 0.7) {
 
         this.videoTitle.textContent = video.title;
         
-        // Clean up previous blob URLs
+
         this.cleanupBlobUrls();
         
         try {
           let videoDataUrl;
-          
-          // Check if video is chunked
+
           if (video.isChunked) {
             console.log('📦 Loading chunked video...');
             this.showStatus('Loading video...', 'loading');
@@ -1738,7 +1727,7 @@ async compressVideo(file, quality = 0.7) {
             videoDataUrl = video.videoData;
           }
           
-          // Convert base64 to blob URL for proper video playback
+
           const blobUrl = this.base64ToBlob(videoDataUrl);
           this.videoPlayer.src = blobUrl;
           
@@ -1766,11 +1755,10 @@ async compressVideo(file, quality = 0.7) {
         console.log('🔄 Converting base64 to blob URL...');
         
         try {
-          // Remove data URL prefix if present
+
           const base64String = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
           const mimeType = base64Data.includes(',') ? base64Data.split(',')[0].split(':')[1].split(';')[0] : 'video/mp4';
-          
-          // Convert base64 to binary
+
           const byteCharacters = atob(base64String);
           const byteNumbers = new Array(byteCharacters.length);
           
@@ -1781,7 +1769,7 @@ async compressVideo(file, quality = 0.7) {
           const byteArray = new Uint8Array(byteNumbers);
           const blob = new Blob([byteArray], { type: mimeType });
           
-          // Create blob URL
+
           const blobUrl = URL.createObjectURL(blob);
           this.currentBlobUrls.add(blobUrl);
           
@@ -1790,7 +1778,6 @@ async compressVideo(file, quality = 0.7) {
           
         } catch (error) {
           console.error('❌ Failed to convert base64 to blob:', error);
-          // Fallback to direct base64
           return base64Data;
         }
       }
@@ -1811,7 +1798,7 @@ async compressVideo(file, quality = 0.7) {
         console.log(`📦 Loading chunks for video ${videoId}...`);
         
         try {
-          // Get all chunks for this video - use only where clause to avoid index requirement
+
           const chunksRef = collection(this.db, 'video_chunks');
           const q = query(chunksRef, where('videoId', '==', videoId));
           const querySnapshot = await getDocs(q);
@@ -1824,7 +1811,7 @@ async compressVideo(file, quality = 0.7) {
           
           console.log(`📦 Loaded ${chunks.length} chunks`);
           
-          // Sort chunks by index (since we can't use orderBy)
+
           const sortedChunks = [];
           for (let i = 0; i < chunks.length; i++) {
             if (chunks[i] !== undefined) {
@@ -1832,10 +1819,10 @@ async compressVideo(file, quality = 0.7) {
             }
           }
           
-          // Combine all chunks
+
           const completeVideoData = sortedChunks.join('');
           
-          // Find the original base64 prefix from the first chunk
+
           const firstChunk = sortedChunks[0];
           if (firstChunk && firstChunk.startsWith('data:')) {
             const prefixEnd = firstChunk.indexOf(',') + 1;
@@ -1855,7 +1842,6 @@ async compressVideo(file, quality = 0.7) {
         console.log('🏠 Showing gallery');
         this.videoPlayer.pause();
         this.videoPlayer.src = '';
-        // Clean up blob URLs when leaving video page
         this.cleanupBlobUrls();
         
         this.videoPage.style.display = 'none';
@@ -1871,9 +1857,8 @@ async compressVideo(file, quality = 0.7) {
       }
 
       updateStats() {
-        // Calculate time until midnight CST
         const now = new Date();
-        const cstOffset = -6 * 60; // CST is UTC-6
+        const cstOffset = -6 * 60;
         const nowCST = new Date(now.getTime() + (now.getTimezoneOffset() + cstOffset) * 60 * 1000);
         
         const tomorrow = new Date(nowCST);
@@ -1890,26 +1875,25 @@ async compressVideo(file, quality = 0.7) {
       startMidnightCleaner() {
         console.log('🕛 Starting midnight cleaner...');
 
-        // Track the last date videos were deleted
         let lastDeletedDate = null;
 
         setInterval(async () => {
           const now = new Date();
-          const cstOffset = -6 * 60; // CST is UTC-6
+          const cstOffset = -6 * 60; 
           const nowCST = new Date(now.getTime() + (now.getTimezoneOffset() + cstOffset) * 60 * 1000);
 
           const hours = nowCST.getHours();
           const minutes = nowCST.getMinutes();
-          const currentDateStr = nowCST.toISOString().slice(0, 10); // YYYY-MM-DD
+          const currentDateStr = nowCST.toISOString().slice(0, 10); 
 
-          // Delete once per day, during 00:00-00:04 CST
+
           if (hours === 0 && minutes < 5 && lastDeletedDate !== currentDateStr) {
             console.log('🕛 MIDNIGHT CST! Deleting all videos...');
             lastDeletedDate = currentDateStr;
             await this.deleteAllVideos();
           }
 
-        }, 60000); // Check every minute
+        }, 60000); 
       }
 
       async deleteAllVideos() {
@@ -1924,15 +1908,13 @@ async compressVideo(file, quality = 0.7) {
           
           const deletePromises = [];
 
-          // Delete all videos
           const videosSnapshot = await getDocs(collection(this.db, 'videos'));
           videosSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
 
-          // Delete all video chunks
+
           const chunksSnapshot = await getDocs(collection(this.db, 'video_chunks'));
           chunksSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
 
-          // Delete all active users
           const activeUsersSnapshot = await getDocs(collection(this.db, 'active_users'));
           activeUsersSnapshot.forEach((doc) => deletePromises.push(deleteDoc(doc.ref)));
 
@@ -2006,7 +1988,6 @@ async compressVideo(file, quality = 0.7) {
       }
     }
 
-    // Initialize the app and make it globally accessible
     window.vanishApp = new VanishGlobalPlatform();
   </script>
 
