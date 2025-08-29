@@ -460,27 +460,6 @@
       color: #a15fcc;
     }
 
-    .refresh-btn {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: rgba(161, 95, 204, 0.9);
-      color: white;
-      border: none;
-      padding: 0.8rem;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1.2rem;
-      box-shadow: 0 4px 15px rgba(161, 95, 204, 0.3);
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
-    }
-
-    .refresh-btn:hover {
-      transform: scale(1.1) rotate(180deg);
-      background: #a15fcc;
-    }
-
     @media (max-width: 768px) {
       .container {
         padding: 1rem 0.5rem;
@@ -598,7 +577,6 @@
       </div>
     </div>
 
-  <button id="refreshBtn" class="refresh-btn" title="Refresh Videos">🔄</button>
 
   <!-- Firebase SDK -->
   <script type="module">
@@ -725,7 +703,7 @@
         this.uploadSection = document.getElementById('uploadSection');
         this.uploadProgress = document.getElementById('uploadProgress');
         this.uploadProgressBar = document.getElementById('uploadProgressBar');
-        this.refreshBtn = document.getElementById('refreshBtn');
+   
         this.totalVideos = document.getElementById('totalVideos');
         this.onlineUsers = document.getElementById('onlineUsers');
         this.timeToMidnight = document.getElementById('timeToMidnight');
@@ -757,11 +735,6 @@
           });
         }
         
-        if (this.refreshBtn) {
-          this.refreshBtn.addEventListener('click', () => {
-            this.loadVideosFromFirebase();
-          });
-        }
         
         if (this.fileInput) {
           this.fileInput.addEventListener('change', () => {
@@ -1248,16 +1221,6 @@ async compressVideo(file, quality = 0.7) {
             <h3 style="color: #fc8181; margin-bottom: 1rem;">🔥 Firebase Connection Failed</h3>
             <p>Unable to connect to the video database.</p>
             <br>
-            <button onclick="location.reload()" style="
-              background: linear-gradient(45deg, #a15fcc, #d3c0f9);
-              color: #1e1e2f;
-              border: none;
-              padding: 1rem 2rem;
-              border-radius: 12px;
-              font-weight: bold;
-              cursor: pointer;
-              margin: 0.5rem;
-            ">🔄 Retry Connection</button>
             <br><br>
             <details style="text-align: left; max-width: 600px; margin: 0 auto;">
               <summary style="cursor: pointer; color: #a15fcc; margin-bottom: 1rem;">🔧 Troubleshooting Steps</summary>
@@ -1558,7 +1521,7 @@ async compressVideo(file, quality = 0.7) {
         }
         
         console.log(`📦 Split video into ${chunks.length} chunks`);
-        this.showStatus(`Uploading video securely in ${chunks.length} parts...`, 'loading');
+        this.showStatus(`Uploading video securely in ${chunks.length} parts (may take up to 10 minutes)...`, 'loading');
 
 
         const mainVideo = {
